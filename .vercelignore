@@ -1,0 +1,8 @@
+node_modules/
+dist/
+artifacts/
+tests/
+.git/
+.env*
+.DS_Store
+README.md
