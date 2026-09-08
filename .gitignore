@@ -11,3 +11,7 @@ playwright-report/
 test-results/
 baseline-manifest.json
 *.local
+
+supabase/.temp/
+
+supabase/.branches/

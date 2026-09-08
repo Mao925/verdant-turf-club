@@ -28,7 +28,7 @@ npm run test:e2e
 ## Supabaseの設定
 
 1. 自分のSupabase組織にゲーム専用のFreeプロジェクトを作る。有料化は別判断。
-2. `supabase/migrations/` のSQLを順に適用する。既存ゲーム外のテーブルは変更しない。
+2. `supabase link --project-ref <ゲーム専用ref>` の後、`supabase db push --dry-run` で確認し、`supabase db push` でSQLを順に適用する。接続情報のキャッシュはGit除外。既存ゲーム外のテーブルは変更しない。
 3. Google CloudにWeb用OAuthクライアントを作り、SupabaseのGoogleプロバイダーにIDと秘密鍵を登録。Googleの許可リダイレクトにはSupabaseが表示するcallback URLを使う。
 4. Supabase AuthのSite URLと許可リダイレクトに開発用・固定試作用URLを登録。アプリの`.env.local`にはプロジェクトURLと公開用キーを設定する。
 5. 実際のGoogleアカウントでログインし、別ブラウザで再開。他人のアカウント、通信断、2端末競合、書出しと取込を確認する。
@@ -39,7 +39,7 @@ npm run test:e2e
 
 自動クラウド保存と端末の未送信保護に加え、検証付きJSON書出し・復旧候補としての取込を行う。クラウド内の旧版はDB全体の障害に対する別バックアップではない。FreeのDB休止・容量・別途バックアップを受け入れる。配信前に運用用の暗号化保管先と定期的なDB書出し・復元手順を確認する。
 
-検証時点：型検査・ビルド、追加14件と既存13件、Chromeの画面検証4件、隔離PostgreSQLでの権限・原子性・再送・同時更新を確認。Googleと実Supabaseには未接続。
+検証時点：型検査・ビルド、追加14件と既存13件、Chromeの画面検証4件、隔離PostgreSQLでの権限・原子性・再送・同時更新を確認。専用Supabase FreeへSQLを適用し、実クラウドでSQLの権限・原子性・再送・復旧と未ログインのHTTP拒否も確認した。SQL検証の一時ユーザーとセーブは全て取り消した。Googleプロバイダー設定と実ログイン後の端末間再開は未確認。
 
 `npm test` はドメインと保存制御。`npm run test:e2e` はローカルの画面とIndexedDBを含む再開・失敗の検証。実クラウドとGoogle連携の検証とは別に記録する。DBの検証は `npm run test:db`。Dockerの専用一時コンテナに `supabase/tests/` のSQLを適用し、終了時に破棄する。Chromeがインストールされている環境で `npm run test:e2e` を実行する。普段のブラウザのプロファイルは使わない。
 

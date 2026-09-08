@@ -21,3 +21,11 @@
 ## セキュリティと検証
 
 RLSで本人のみSELECT。直接DMLは禁止し、SECURITY DEFINERの関数内でauth.uid・所有者を検査、空search_path・完全修飾名・限定EXECUTEを使う。クライアント計算の改変防止を保証しない。型検査、命令と台帳のテスト、通信失敗・応答消失・競合のテスト、実PostgreSQLの権限/原子性検証、ブラウザのIndexedDB・画面検証を分離する。Google OAuthと実クラウド接続は設定完了後に検証する。
+
+## 開発クラウドへの接続
+
+Supabase CLIの接続キャッシュは `supabase/.temp/` へ置き、Gitから除外する。DB定義と適用履歴は `supabase/migrations/` の版番号で一致させる。初回の適用後、再度のdry-runで未適用がないことを確認する。
+
+現在の開発先は専用Freeプロジェクト。アプリには `.env.local` の公開URL・publishable keyだけを渡す。管理用トークンとDBパスワードはMacのキーチェーンで扱う。Authの戻り先は `http://localhost:5173/` と `http://127.0.0.1:5173/`。Googleの戻り先には実Supabaseの `/auth/v1/callback` を登録する。P2配信時に固定URLを追加し、ワイルドカードで任意の配信先を許可しない。
+
+実クラウドの初回SQL検証は空の専用プロジェクトで一つのトランザクションを使い、最後にROLLBACKする。auth.uidの入力にはテスト用UUIDを使うため、Googleログインの検証とは区別する。
