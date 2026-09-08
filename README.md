@@ -67,7 +67,7 @@ Vercelの既存プロジェクト `verdant-turf-club` を使う。公開環境�
 
 - `npm test`：P1・P2のドメインと保存制御、旧3D/計算の回帰。
 - `npm run test:e2e`：Googleへの認証開始パラメータ、PC・390pxの全判断、モックAPIで通信断・応答消失・競合・復旧・P1移行。実サービス用1件は既定でスキップ。
-- `node --env-file=.env.local scripts/live-cloud-check.mjs`：実Supabaseで一時ユーザーを作成し、発行されたテストセッションで実RPC・画面の取得/競走/通信断/応答消失/競合/復旧・他人の行が見えないことを検証。メールを送信しない。終了時に一時アカウントとそのセーブを削除する。これは実Google認証とは区別する。トレース・動画・画面の自動保存は無効。
+- `node --env-file=.env.local scripts/live-cloud-check.mjs`（公開URLを検証する場合は環境変数 `P2_BASE_URL=https://verdant-turf-club.vercel.app` を指定）：実Supabaseで一時ユーザーを作成し、発行されたテストセッションで実RPC・画面の取得/競走/通信断/応答消失/競合/復旧・他人の行が見えないことを検証。メールを送信しない。終了時に一時アカウントとそのセーブを削除する。これは実Google認証とは区別する。トレース・動画・画面の自動保存は無効。
 - `npm run test:db`：TCPで起動完了を確認した隔離PostgreSQLに全マイグレーションを適用し、権限・原子性・二重送信・同時更新を検証。
 - `npm run measure:p2`：一頭と永続NPCを3歳8月末まで進める合成負荷。`npm run measure` は従来のP1長期負荷。
 - `npm run backup`：既存MacキーチェーンのSupabase CLI認証でゲーム4表と認証利用者のIDだけを取得し、暗号化＋HMACを付けて `~/Documents/Backups/verdant-owner/` へ保存。平文・トークンはログやファイルへ出さない。Python 3、既存のcertifi、openssl、Macのsecurityコマンドが必要。

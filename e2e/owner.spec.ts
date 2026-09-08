@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs";
 import { test, expect, type Page } from "@playwright/test";
 import { applyCommand, backup, cash, createWorld } from "../src/domain/world";
 import { activeRace, openConsultation } from "../src/domain/career";
@@ -95,6 +96,40 @@ test("PC: purchase, trainer, wait, multiple races, 3D/skip, goals, export and re
   await expect(page.getByRole("img", { name: /の3D観戦/ })).toBeVisible();
   await page.getByRole("button", { name: "観戦を再生", exact: true }).click();
   await page.getByLabel("再生速度").selectOption("12");
+  const rendering = await page.evaluate(async () => {
+    const intervals: number[] = [];
+    await new Promise<void>((resolve) => {
+      let previous = performance.now();
+      function frame(now: number) {
+        intervals.push(now - previous);
+        previous = now;
+        if (intervals.length < 90) requestAnimationFrame(frame);
+        else resolve();
+      }
+      requestAnimationFrame(frame);
+    });
+    intervals.shift();
+    intervals.sort((a, b) => a - b);
+    return {
+      frames: intervals.length,
+      p50FrameMs: intervals[Math.floor(intervals.length * 0.5)],
+      p95FrameMs: intervals[Math.floor(intervals.length * 0.95)],
+      maxFrameMs: intervals.at(-1),
+      canvases: document.querySelectorAll("canvas").length,
+    };
+  });
+  writeFileSync(
+    "artifacts/p2-browser-performance.json",
+    JSON.stringify(
+      {
+        kind: "Headless Chrome on this Mac, portrait plus 8-horse 3D replay; not a real-device guarantee",
+        ...rendering,
+      },
+      null,
+      2,
+    ),
+  );
+
   await page.getByRole("button", { name: "スキップして着順を見る" }).click();
   await expect(page.locator(".race-results li")).toHaveCount(8);
   expect(db.head!.revision).toBe(revision);
