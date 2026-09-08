@@ -11,14 +11,14 @@ try:
     p=run(['docker','run','--rm','-d','--name',name,'-e','POSTGRES_PASSWORD=local-validation-only','postgres:17-alpine'])
     if p.returncode:raise RuntimeError(p.stderr)
     for _ in range(60):
-        if run(['docker','exec',name,'pg_isready','-U','postgres']).returncode==0:break
+        if run(['docker','exec',name,'pg_isready','-h','127.0.0.1','-U','postgres']).returncode==0:break
         time.sleep(.5)
     else:raise RuntimeError('PostgreSQL did not start')
     bootstrap="""create role anon nologin;create role authenticated nologin;create schema auth;
 create table auth.users(id uuid primary key);grant usage on schema auth,public to anon,authenticated;
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
 grant execute on function auth.uid() to anon,authenticated;"""
-    for label,script in [('bootstrap',bootstrap),('migration',(root/'supabase/migrations/202609080001_owner_foundation.sql').read_text()),('permissions, atomicity, idempotency, checkpoints',(root/'supabase/tests/owner_save.sql').read_text())]:
+    for label,script in [('bootstrap',bootstrap),('migrations','\n'.join(p.read_text() for p in sorted((root/'supabase/migrations').glob('*.sql')))),('permissions, atomicity, idempotency, checkpoints',(root/'supabase/tests/owner_save.sql').read_text())]:
         p=sql(script)
         if p.returncode:raise RuntimeError(label+': '+p.stderr)
         print('PASS:',label,flush=True)

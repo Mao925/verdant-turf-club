@@ -560,3 +560,227 @@ footer span {
     transition: none !important;
   }
 }
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.form-grid,
+.trainer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+.form-grid .wide {
+  grid-column: 1/-1;
+}
+input[type="color"] {
+  height: 46px;
+  padding: 5px;
+}
+select {
+  font: inherit;
+  color: inherit;
+  min-height: 44px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #c9cfbd;
+  border-radius: 4px;
+  background: #fffdf6;
+}
+.market-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin: 32px 0;
+}
+.lot-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  padding: 22px;
+  background: #fffdf6;
+  border: 1px solid #d5d7c7;
+  border-radius: 4px;
+  gap: 12px;
+  line-height: 1.7;
+}
+.lot-card.selected {
+  outline: 2px solid #275943;
+  outline-offset: 3px;
+}
+.lot-card strong {
+  font-size: 21px;
+}
+.lot-card b {
+  margin-top: auto;
+  font-size: 16px;
+}
+.lot-card p {
+  margin: 0;
+}
+.lot-card small {
+  color: #636b5e;
+}
+.lot-coat {
+  height: 110px;
+  display: grid;
+  place-items: center;
+  font-size: 68px;
+  color: #fff9e6;
+  border-radius: 2px;
+}
+.decision-card,
+.consultation,
+.goals-panel {
+  margin: 28px 0;
+  padding: 30px;
+  background: #fffdf7;
+  border: 1px solid #d5d7c7;
+  border-radius: 4px;
+}
+.consultation {
+  background: #f0f1e7;
+  border-left: 4px solid #456644;
+}
+.consultation h2 {
+  max-width: 850px;
+  font-size: 25px;
+  line-height: 1.7;
+}
+.consultation blockquote {
+  padding: 18px;
+  margin: 20px 0;
+  background: #fffdf680;
+  border-left: 2px solid #a3ad87;
+}
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin-top: 22px;
+}
+.choice-grid article {
+  padding-top: 12px;
+  border-top: 1px solid #bec7ae;
+}
+.choice-grid button {
+  margin-top: 10px;
+}
+.scope-note {
+  margin: 30px 0;
+}
+.goals-panel summary {
+  cursor: pointer;
+  font-size: 18px;
+  min-height: 30px;
+}
+.goals-panel form {
+  margin-top: 24px;
+}
+.race-scene {
+  height: 440px;
+  position: relative;
+  overflow: hidden;
+  background: #183f2c;
+  border-radius: 4px;
+}
+.race-scene canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.replay-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+}
+.replay-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.replay-toolbar select {
+  width: auto;
+}
+.race-lanes {
+  padding: 24px;
+  background: #e5ead9;
+}
+.race-lane {
+  padding: 9px;
+}
+.race-lane span {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+.race-rail {
+  height: 9px;
+  background: #c6d1b8;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.race-rail i {
+  height: 100%;
+  display: block;
+  border-right: 3px solid #213c2c;
+  min-width: 3px;
+}
+.my-horse {
+  background: #dce6c8;
+}
+.race-results {
+  list-style: none;
+  padding: 0;
+}
+.race-results li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid #d5d7c7;
+}
+@media (max-width: 1000px) {
+  .market-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .choice-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 700px) {
+  .form-grid,
+  .trainer-grid {
+    grid-template-columns: 1fr;
+  }
+  .market-grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  .lot-coat {
+    height: 90px;
+  }
+  .decision-card,
+  .consultation,
+  .goals-panel {
+    padding: 20px;
+  }
+  .race-scene {
+    height: 300px;
+  }
+  .race-results li {
+    flex-direction: column;
+  }
+  .replay-toolbar button {
+    flex: 1 1 45%;
+  }
+  .start-card h1 {
+    font-size: 29px;
+  }
+}

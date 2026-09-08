@@ -68,16 +68,18 @@ export class SupabaseCloud implements Cloud {
     return envelope(data);
   }
   async commit(p: Pending) {
-    const { data, error } = await this.client.rpc("commit_owner_save", {
-      p_save_id: p.state.core.saveId,
-      p_command_id: p.id,
-      p_expected_revision: p.expectedRevision,
-      p_core: p.patch.core,
-      p_upserts: p.patch.upserts,
-      p_replace: p.patch.replace,
-    });
+    const { data, error } = await this.client
+      .rpc("commit_owner_save", {
+        p_save_id: p.state.core.saveId,
+        p_command_id: p.id,
+        p_expected_revision: p.expectedRevision,
+        p_core: p.patch.core,
+        p_upserts: p.patch.upserts,
+        p_replace: p.patch.replace,
+      })
+      .retry(false);
     if (error) {
-      if (error.code === "40001")
+      if (error.code === "40001" || error.code === "PT409")
         throw new ConflictError(
           "別の端末で記録が更新されています。手元の結果を保護してクラウドの最新状態を確認してください。",
         );

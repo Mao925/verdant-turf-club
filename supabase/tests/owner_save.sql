@@ -16,7 +16,7 @@ begin
  perform pg_temp.check_ok((select count(*) from public.owner_commits)=1,'no duplicate commit');
  failed:=false;begin perform public.commit_owner_save(sid,cid,0,core,'[{"id":"different","kind":"horse"}]',false);exception when sqlstate '22023' then failed:=true;end;
  perform pg_temp.check_ok(failed,'reject changed content with same command id');
- failed:=false;begin perform public.commit_owner_save(sid,'50000000-0000-4000-8000-000000000005',0,core,entities,false);exception when sqlstate '40001' then failed:=true;end;
+ failed:=false;begin perform public.commit_owner_save(sid,'50000000-0000-4000-8000-000000000005',0,core,entities,false);exception when sqlstate 'PT409' or sqlstate '40001' then failed:=true;end;
  perform pg_temp.check_ok(failed,'reject stale revision');
  failed:=false;begin perform public.commit_owner_save(sid,'50000000-0000-4000-8000-000000000005',1,core,'[{"id":"horse-1","kind":"horse","name":"after"},{"id":"bad","kind":"unsupported"}]',false);exception when sqlstate '22023' then failed:=true;end;
  perform pg_temp.check_ok(failed,'invalid batch is rejected');

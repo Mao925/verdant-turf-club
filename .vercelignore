@@ -6,3 +6,13 @@ tests/
 .env*
 .DS_Store
 README.md
+
+supabase/
+scripts/
+e2e/
+test-results/
+playwright-report/
+.codex/
+.agents/
+*.md
+__pycache__/

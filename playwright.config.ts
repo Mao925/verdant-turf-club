@@ -14,8 +14,9 @@ export default defineConfig({
     url: "http://127.0.0.1:5178",
     reuseExistingServer: false,
     env: {
-      VITE_SUPABASE_URL: "http://127.0.0.1:54321",
-      VITE_SUPABASE_PUBLISHABLE_KEY: "public-local-test-key",
+      VITE_SUPABASE_URL: process.env.P2_LIVE_URL ?? "http://127.0.0.1:54321",
+      VITE_SUPABASE_PUBLISHABLE_KEY:
+        process.env.P2_LIVE_KEY ?? "public-local-test-key",
     },
   },
 });

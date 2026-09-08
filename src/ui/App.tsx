@@ -1,28 +1,18 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-  type FormEvent,
-} from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { OwnerSession } from "../application/session";
 import {
   backup,
   cash,
-  createWorld,
-  daysToNextMonth,
-  horses,
   parseBackup,
   validateWorld,
   type World,
-  type LedgerEntry,
   type JournalEvent,
 } from "../domain/world";
 import { WorldEngine } from "../engine/client";
 import { BrowserJournal } from "../persistence/journal";
 import { configuredClient, SupabaseCloud } from "../persistence/supabase";
-import { HorseView } from "./HorseView";
+import { CareerHome, CareerStart, FinancePanel } from "./CareerPanels";
 const yen = (n: number) => new Intl.NumberFormat("ja-JP").format(n) + "円";
 function download(text: string, name: string) {
   const url = URL.createObjectURL(
@@ -154,7 +144,7 @@ export function App() {
       <footer>
         VERDANT · 馬主の物語　
         <span>
-          基盤の試作です。市場・競走・継続相談は次の段階で加わります。
+          P2試作 · 一頭と重ねる判断。繁殖・死亡を含む正式版は開発中です。
         </span>
       </footer>
     </>
@@ -180,10 +170,7 @@ function OwnerHome({
   }, [accountId, client]);
   const { session, cloud } = resources;
   const view = useSyncExternalStore(session.subscribe, session.snapshot);
-  const [name, setName] = useState("");
   const [tab, setTab] = useState<"home" | "finance" | "journal">("home");
-  const [horseName, setHorseName] = useState("");
-  const [goal, setGoal] = useState("");
   const [restore, setRestore] = useState<World | null>(null);
   const [notice, setNotice] = useState("");
   const [history, setHistory] = useState<{ revision: number; state: World }[]>(
@@ -206,12 +193,7 @@ function OwnerHome({
     };
   }, [session, resources]);
   const world = view.confirmed?.state;
-  const horse = world ? horses(world)[0] : null;
   const ready = view.status === "ready" && !view.pending;
-  useEffect(() => {
-    if (horse) setHorseName(horse.name);
-    if (world) setGoal(world.core.owner.goal);
-  }, [horse?.name, world?.core.owner.goal]);
   const status = {
     loading: "記録を確認中",
     ready: world ? "クラウド保存済み" : "経歴を開始できます",
@@ -265,7 +247,11 @@ function OwnerHome({
       {view.message && (
         <div className="notice" role="alert">
           <p>{view.message}</p>
-          <p>保存が確認できるまで、次の意思決定と日付の進行を止めています。</p>
+          {!ready && (
+            <p>
+              保存が確認できるまで、次の意思決定と日付の進行を止めています。
+            </p>
+          )}
           {!["saving", "computing", "loading"].includes(view.status) && (
             <button onClick={() => void session.retry()}>
               同じ処理を再確認
@@ -293,45 +279,7 @@ function OwnerHome({
         </div>
       )}
       {!world ? (
-        <section className="start-card">
-          <p className="eyebrow">はじめの一ページ</p>
-          <h1>馬主としての経歴を始める</h1>
-          <p>
-            この基盤試作では、一頭を所有した状態から、記録・日付・費用の保存を確かめられます。
-          </p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (ready)
-                void session.begin(
-                  createWorld(
-                    {
-                      save: crypto.randomUUID(),
-                      owner: crypto.randomUUID(),
-                      horse: crypto.randomUUID(),
-                      contract: crypto.randomUUID(),
-                    },
-                    name,
-                  ),
-                );
-            }}
-          >
-            <label>
-              馬主名
-              <input
-                maxLength={40}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="あなたの名前"
-                required
-                disabled={!ready}
-              />
-            </label>
-            <button className="primary" disabled={!ready}>
-              経歴を始める
-            </button>
-          </form>
-        </section>
+        <CareerStart ready={ready} begin={(w) => session.begin(w)} />
       ) : (
         <>
           <nav className="tabs" aria-label="馬主の記録">
@@ -354,175 +302,19 @@ function OwnerHome({
               記録室
             </button>
           </nav>
-          {tab === "home" && horse && (
-            <>
-              <section className="page-heading">
-                <div>
-                  <p className="eyebrow">{world.core.owner.name}の所有馬</p>
-                  <h1>{horse.name}</h1>
-                  <p>
-                    {horse.sex === "mare" ? "牝" : "牡"}
-                    {Number(world.core.date.slice(0, 4)) -
-                      Number(horse.birthDate.slice(0, 4))}
-                    歳 · {horse.location}
-                  </p>
-                </div>
-                <span className="date-card">
-                  {world.core.date.replaceAll("-", " / ")}
-                </span>
-              </section>
-              <div className="home-grid">
-                <HorseView horse={horse} silk={world.core.owner.silk} />
-                <aside className="letter">
-                  <p className="eyebrow">この馬と目指す景色</p>
-                  <h2>{world.core.owner.goal}</h2>
-                  <p>
-                    目標を変えても、これまでの願いは記録に残ります。愛馬のために使える時間と資金を、少しずつ確かめていきましょう。
-                  </p>
-                  <div className="letter-sign">担当調教師　佐伯 修司</div>
-                  <p className="fine">
-                    現在は所有・保存の基盤確認用の紹介文です。所見と継続相談は次の段階で実装します。
-                  </p>
-                </aside>
-              </div>
-              <section className="decision-row">
-                <div>
-                  <p className="eyebrow">次の時間へ</p>
-                  <p>預託料を確認しながら進めます。</p>
-                </div>
-                <div className="actions">
-                  <button
-                    disabled={!ready}
-                    onClick={() =>
-                      void session.act({ type: "advance", days: 7 })
-                    }
-                  >
-                    1週間進める
-                  </button>
-                  <button
-                    className="primary"
-                    disabled={!ready}
-                    onClick={() =>
-                      void session.act({
-                        type: "advance",
-                        days: daysToNextMonth(world.core.date),
-                      })
-                    }
-                  >
-                    1か月進める
-                  </button>
-                </div>
-              </section>
-              <div className="forms-grid">
-                <form
-                  onSubmit={(e: FormEvent) => {
-                    e.preventDefault();
-                    void session.act({
-                      type: "rename",
-                      horseId: horse.id,
-                      name: horseName,
-                    });
-                  }}
-                >
-                  <label>
-                    愛馬の名前
-                    <input
-                      value={horseName}
-                      maxLength={40}
-                      onChange={(e) => setHorseName(e.target.value)}
-                      disabled={!ready}
-                    />
-                  </label>
-                  <button disabled={!ready || !horseName.trim()}>
-                    馬名を記録する
-                  </button>
-                </form>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void session.act({ type: "goal", goal });
-                  }}
-                >
-                  <label>
-                    馬主としての目標
-                    <input
-                      value={goal}
-                      maxLength={80}
-                      onChange={(e) => setGoal(e.target.value)}
-                      disabled={!ready}
-                    />
-                  </label>
-                  <button disabled={!ready || !goal.trim()}>
-                    目標を記録する
-                  </button>
-                </form>
-              </div>
-            </>
+          {tab === "home" && (
+            <CareerHome
+              world={world}
+              ready={ready}
+              act={(c) => session.act(c)}
+            />
           )}
           {tab === "finance" && (
-            <section>
-              <p className="eyebrow">夢を続けるための余裕</p>
-              <h1>資金と契約</h1>
-              <div className="metrics">
-                <article>
-                  <span>競馬用口座</span>
-                  <strong data-testid="balance">{yen(cash(world))}</strong>
-                </article>
-                <article>
-                  <span>年間の拠出予定</span>
-                  <strong>{yen(world.core.owner.annualYen)}</strong>
-                </article>
-                <article>
-                  <span>月額預託料・検証用</span>
-                  <strong>
-                    {yen(
-                      Object.values(world.entities).reduce(
-                        (n, e) =>
-                          n + (e.kind === "contract" ? e.monthlyYen : 0),
-                        0,
-                      ),
-                    )}
-                  </strong>
-                </article>
-              </div>
-              <p className="fine">
-                P1は日割り計上の基盤検証です。請求期日・引当・12か月予測はP2で具体化します。
-              </p>
-              <div className="table-scroll">
-                <table>
-                  <caption>入出金の台帳</caption>
-                  <thead>
-                    <tr>
-                      <th>日付</th>
-                      <th>内容</th>
-                      <th>金額</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.values(world.entities)
-                      .filter((e): e is LedgerEntry => e.kind === "ledger")
-                      .sort(
-                        (a, b) =>
-                          b.date.localeCompare(a.date) ||
-                          a.id.localeCompare(b.id),
-                      )
-                      .slice(0, 100)
-                      .map((e) => (
-                        <tr key={e.id}>
-                          <td>{e.date}</td>
-                          <td>{e.description}</td>
-                          <td className={e.amountYen < 0 ? "expense" : ""}>
-                            {yen(e.amountYen)}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="fine">
-                直近100件を表示。全件は保存・書出しに保持しています。
-              </p>
-            </section>
+            <FinancePanel
+              world={world}
+              ready={ready}
+              act={(c) => session.act(c)}
+            />
           )}
           {tab === "journal" && (
             <section>

@@ -1,4 +1,18 @@
-export type Entity = Horse | Contract | LedgerEntry | JournalEvent;
+import type {
+  Career,
+  CareerCommand,
+  CareerEntity,
+  HorseDetails,
+  TrainerId,
+} from "./career-types.ts";
+import {
+  applyCareer,
+  upgradeWorld,
+  validateCareer,
+  validateCareerEntity,
+} from "./career.ts";
+export type Entity =
+  Horse | Contract | LedgerEntry | JournalEvent | CareerEntity;
 export type Horse = {
   kind: "horse";
   id: string;
@@ -8,6 +22,7 @@ export type Horse = {
   ownerId: string;
   coat: string;
   location: string;
+  details?: HorseDetails;
 };
 export type Contract = {
   kind: "contract";
@@ -16,13 +31,22 @@ export type Contract = {
   monthlyYen: number;
   startDate: string;
   trainer: string;
+  trainerId?: TrainerId;
+  accruedYen?: number;
+  endDate?: string;
 };
 export type LedgerEntry = {
   kind: "ledger";
   id: string;
   date: string;
   amountYen: number;
-  category: "capital" | "purchase" | "boarding";
+  category:
+    | "capital"
+    | "purchase"
+    | "boarding"
+    | "registration"
+    | "transport"
+    | "prize";
   horseId?: string;
   contractId?: string;
   description: string;
@@ -36,8 +60,9 @@ export type JournalEvent = {
 };
 export type Core = {
   schemaVersion: 1;
-  engineVersion: "owner-p1";
-  rulesetVersion: "foundation-2026";
+  engineVersion: "owner-p1" | "owner-p2";
+  rulesetVersion: "foundation-2026" | "prototype-2026";
+  career?: Career;
   saveId: string;
   worldSeed: number;
   date: string;
@@ -52,6 +77,7 @@ export type Core = {
 export type World = { core: Core; entities: Record<string, Entity> };
 export type Envelope = { revision: number; state: World };
 export type Command =
+  | CareerCommand
   | { type: "advance"; days: number }
   | { type: "rename"; horseId: string; name: string }
   | { type: "goal"; goal: string };
@@ -94,7 +120,7 @@ export function cash(world: World) {
 }
 export function horses(world: World) {
   return Object.values(world.entities).filter(
-    (e): e is Horse => e.kind === "horse",
+    (e): e is Horse => e.kind === "horse" && e.ownerId === world.core.owner.id,
   );
 }
 function check(ok: unknown, message: string): asserts ok {
@@ -123,8 +149,10 @@ export function validateWorld(value: unknown): asserts value is World {
     es = value.entities;
   check(
     c.schemaVersion === 1 &&
-      c.engineVersion === "owner-p1" &&
-      c.rulesetVersion === "foundation-2026",
+      ((c.engineVersion === "owner-p1" &&
+        c.rulesetVersion === "foundation-2026") ||
+        (c.engineVersion === "owner-p2" &&
+          c.rulesetVersion === "prototype-2026")),
     "この版の保存データには対応していません。",
   );
   check(
@@ -172,7 +200,8 @@ export function validateWorld(value: unknown): asserts value is World {
         short(e.name, 40) &&
           validDate(e.birthDate) &&
           e.birthDate <= c.date &&
-          e.ownerId === o.id &&
+          (e.ownerId === o.id ||
+            (c.engineVersion === "owner-p2" && short(e.ownerId))) &&
           ["mare", "stallion"].includes(e.sex as string) &&
           short(e.location, 80) &&
           typeof e.coat === "string" &&
@@ -194,12 +223,21 @@ export function validateWorld(value: unknown): asserts value is World {
         validDate(e.date) &&
           e.date <= c.date &&
           money(e.amountYen) &&
-          ["capital", "purchase", "boarding"].includes(e.category as string) &&
+          [
+            "capital",
+            "purchase",
+            "boarding",
+            "registration",
+            "transport",
+            "prize",
+          ].includes(e.category as string) &&
           short(e.description, 200),
         "台帳が不正です。",
       );
       check(
-        e.category === "capital" ? e.amountYen >= 0 : e.amountYen <= 0,
+        ["capital", "prize"].includes(e.category as string)
+          ? e.amountYen >= 0
+          : e.amountYen <= 0,
         "台帳の符号が不正です。",
       );
       total += e.amountYen;
@@ -215,12 +253,17 @@ export function validateWorld(value: unknown): asserts value is World {
       );
       if (e.horseId !== undefined)
         check(refers(es, e.horseId, "horse"), "出来事の馬が存在しません。");
-    } else throw new Error("未対応の記録種別です。");
+    } else if (c.engineVersion === "owner-p2")
+      validateCareerEntity(e, es, c.date as string);
+    else throw new Error("未対応の記録種別です。");
   }
   check(
-    horseCount > 0 && total >= 0 && money(total),
+    (c.engineVersion === "owner-p2" || horseCount > 0) &&
+      total >= 0 &&
+      money(total),
     "所有馬または残高が不正です。",
   );
+  if (c.engineVersion === "owner-p2") validateCareer(value as World);
 }
 export function createWorld(
   ids: { save: string; owner: string; horse: string; contract: string },
@@ -298,6 +341,9 @@ export function applyCommand(
 ): World {
   validateWorld(world);
   check(UUID.test(id), "命令IDが不正です。");
+  if (command.type === "upgrade") return upgradeWorld(world, id);
+  if (world.core.engineVersion === "owner-p2")
+    return applyCareer(world, command, id);
   const next = structuredClone(world);
   const { core, entities } = next;
   if (command.type === "rename") {
