@@ -139,7 +139,7 @@ function createHorse(horse) {
 
 export class RaceScene {
   constructor(container, horses, quality, onError) {
-    this.container = container; this.mode = 'broadcast'; this.selected = null; this.onError = onError;
+    this.container = container; this.portrait = false; this.mode = 'broadcast'; this.selected = null; this.onError = onError;
     this.scene = new THREE.Scene(); this.scene.background = new THREE.Color('#b5d7e0');
     this.scene.fog = new THREE.Fog('#bdd9d7', 150, 410);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -148,7 +148,7 @@ export class RaceScene {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.domElement.setAttribute('aria-label', '8頭の馬と騎手が走る3D芝コース');
     this.renderer.domElement.setAttribute('role', 'img'); container.prepend(this.renderer.domElement);
-    this.renderer.domElement.addEventListener('webglcontextlost', event => { event.preventDefault(); onError('3D描画が中断されました。ページを再読み込みしてください。購入内容は保存されています。'); });
+    this.renderer.domElement.addEventListener('webglcontextlost', event => { event.preventDefault(); onError('3D描画が中断されました。ページを再読み込みしてください。保存状況を確認してから再読み込みしてください。'); });
     this.camera = new THREE.PerspectiveCamera(47, 1, .2, 650);
     this.camera.position.set(23, 12, 65); this.look = new THREE.Vector3(-2, 1.4, 40);
     this.camera.lookAt(this.look);
@@ -312,13 +312,16 @@ export class RaceScene {
       horse.arrow.position.y = 4.55 + Math.sin(time * 3) * .12;
       horse.badge.material.opacity = selected && selected !== i + 1 ? .76 : 1;
     }
-    this.gate.visible = !racing || raceTime < 5;
+    this.gate.visible = !this.portrait && (!racing || raceTime < 5);
     this.gate.position.y = racing ? -Math.max(0, raceTime - 1.4) * 4 : 0;
     this.doors.forEach(({ door, side }) => { door.rotation.y = racing ? side * Math.min(Math.PI * .48, raceTime * 5) : 0; });
     const focus = this.horses[chosen].root.position;
     const p = trackPoint(samples[chosen].d - 1.85, samples[chosen].lane);
     const targetPos = new THREE.Vector3(), targetLook = new THREE.Vector3();
-    if (this.mode === 'follow') {
+    if (this.portrait) {
+      targetPos.set(focus.x + 3, 4.2, focus.z + 11);
+      targetLook.set(focus.x + .5, 1.7, focus.z);
+    } else if (this.mode === 'follow') {
       targetPos.set(focus.x - p.dx * 11 + p.nx * 5, 6.5, focus.z - p.dz * 11 + p.nz * 5);
       targetLook.set(focus.x + p.dx * 4, 1.7, focus.z + p.dz * 4);
     } else if (this.mode === 'overhead') {
@@ -342,5 +345,21 @@ export class RaceScene {
     this.sun.target.position.set(sunTarget.x, 0, sunTarget.z); this.sun.position.set(sunTarget.x - 35, 65, sunTarget.z + 30);
     this.renderer.render(this.scene, this.camera);
   }
-  dispose() { this.observer.disconnect(); this.renderer.dispose(); }
+  dispose() {
+    this.observer.disconnect();
+    const geometries = new Set(), localMaterials = new Set(), textures = new Set();
+    this.scene.traverse(object => {
+      if (object.geometry && object.geometry !== sphereGeometry && object.geometry !== boxGeometry) geometries.add(object.geometry);
+      const list = object.material ? (Array.isArray(object.material) ? object.material : [object.material]) : [];
+      for (const m of list) if (![...materials.values()].includes(m)) {
+        localMaterials.add(m);
+        for (const value of Object.values(m)) if (value?.isTexture) textures.add(value);
+      }
+    });
+    for (const value of textures) value.dispose();
+    for (const value of localMaterials) value.dispose();
+    for (const value of geometries) value.dispose();
+    this.sun.shadow.map?.dispose();
+    this.renderer.dispose();
+  }
 }

@@ -6,3 +6,8 @@ artifacts/
 .env*
 !.env.example
 .vercel
+
+playwright-report/
+test-results/
+baseline-manifest.json
+*.local

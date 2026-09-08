@@ -5,10 +5,29 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
+    "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test tests/*.test.js"
+    "test": "vitest run && node --test tests/game.test.js",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test",
+    "test:db": "python3 scripts/verify_database.py",
+    "format:check": "prettier --check src/domain src/engine src/application src/persistence src/ui src/main.tsx src/owner.css tests/owner.test.ts e2e playwright.config.ts vitest.config.ts tsconfig.json scripts/measure-world.mjs",
+    "measure": "node --experimental-strip-types scripts/measure-world.mjs"
   },
-  "dependencies": { "three": "^0.180.0" },
-  "devDependencies": { "vite": "^7.1.0" }
+  "dependencies": {
+    "@supabase/supabase-js": "^2.116.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "fake-indexeddb": "^6.2.5",
+    "prettier": "^3.9.6",
+    "typescript": "^7.0.2",
+    "vite": "^7.1.0",
+    "vitest": "^5.0.0"
+  }
 }
