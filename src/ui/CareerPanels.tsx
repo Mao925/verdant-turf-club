@@ -1,3 +1,12 @@
+import { createSeason, allPending } from "../domain/season";
+import { classFor, routeFor } from "../domain/program";
+import type { SeasonOpportunity, SeasonRace } from "../domain/season-types";
+import {
+  PortfolioPanel,
+  ProgramPanel,
+  RaceTermsPanel,
+  WorldRecords,
+} from "./SeasonPanels";
 import { useEffect, useState } from "react";
 import {
   cash,
@@ -55,7 +64,7 @@ export function CareerStart({
         onSubmit={(e) => {
           e.preventDefault();
           try {
-            const w = createCareer(
+            const w = createSeason(
               {
                 save: crypto.randomUUID(),
                 owner: crypto.randomUUID(),
@@ -80,6 +89,26 @@ export function CareerStart({
         }}
       >
         <fieldset disabled={!ready} className="form-grid">
+          <label className="wide">
+            資金計画の例
+            <select
+              defaultValue="small"
+              onChange={(e) => {
+                const preset =
+                  e.target.value === "large"
+                    ? [50000, 8000]
+                    : e.target.value === "medium"
+                      ? [10000, 2000]
+                      : [3000, 600];
+                setInitial(preset[0]);
+                setAnnual(preset[1]);
+              }}
+            >
+              <option value="small">少数の愛馬に託す · 3,000万／年600万</option>
+              <option value="medium">数頭で挑む · 1億／年2,000万</option>
+              <option value="large">大きな夢に投資 · 5億／年8,000万</option>
+            </select>
+          </label>
           <label>
             馬主名
             <input
@@ -112,7 +141,7 @@ export function CareerStart({
             <input
               type="number"
               min={500}
-              max={10000}
+              max={50000}
               step={10}
               value={initial}
               onChange={(e) => setInitial(Number(e.target.value))}
@@ -124,7 +153,7 @@ export function CareerStart({
             <input
               type="number"
               min={0}
-              max={2000}
+              max={8000}
               step={10}
               value={annual}
               onChange={(e) => setAnnual(Number(e.target.value))}
@@ -148,17 +177,15 @@ export function CareerHome({ world: w, ready, act }: Props) {
     return (
       <section className="start-card">
         <p className="eyebrow">続きの一ページへ</p>
-        <h1>P2で愛馬との経歴を続ける</h1>
+        <h1>通年番組で、愛馬との経歴を続ける</h1>
         <p>
           現在の馬・日付・資金・履歴を残して、新しい競走と相談へ進みます。今後の預託料は月末締め・翌月7日払いへ変わります。
         </p>
-        <p>
-          新たな市場での購入は、新しい経歴の開始時に体験できます。この経歴の愛馬を買い直す必要はありません。
-        </p>
+        <p>移行後は既存の愛馬を残したまま、市場で追加の所有馬を探せます。</p>
         <button
           className="primary"
           disabled={!ready}
-          onClick={() => void act({ type: "upgrade" })}
+          onClick={() => void act({ type: "upgrade-season" })}
         >
           愛馬と記録を引き継ぐ
         </button>
@@ -166,6 +193,23 @@ export function CareerHome({ world: w, ready, act }: Props) {
     );
   return (
     <>
+      {!c.portfolio && (
+        <section className="decision-card">
+          <p className="eyebrow">P3 · 続きの一ページ</p>
+          <h2>5場の通年番組と、複数の愛馬へ</h2>
+          <p>
+            愛馬・契約・日付・途中の相談・未精算結果を残して引き継ぎます。P2で登録した競走は当時の条件を保ちます。
+          </p>
+          <button
+            className="primary"
+            disabled={!ready}
+            onClick={() => void act({ type: "upgrade-season" })}
+          >
+            通年番組へ引き継ぐ
+          </button>
+        </section>
+      )}
+      {c.portfolio && <PortfolioPanel {...{ world: w, ready, act }} />}
       <section className="page-heading">
         <div>
           <p className="eyebrow">{w.core.owner.name}の馬主手帳</p>
@@ -212,6 +256,12 @@ export function CareerHome({ world: w, ready, act }: Props) {
                   ? "回復を待つ時期"
                   : "調整を継続中"}
               </p>
+              {c.portfolio && (
+                <p>
+                  {classFor(horse)} · 収得賞金{" "}
+                  {yen(horse.details!.earnedYen ?? 0)}
+                </p>
+              )}
               <p className="fine">
                 登録：{horse.details!.registered ? "完了" : "未完了"} ／
                 ゲート試験：
@@ -223,13 +273,21 @@ export function CareerHome({ world: w, ready, act }: Props) {
             </aside>
           </div>
           {c.stage === "active" && (
-            <ActivePanel {...{ world: w, ready, act }} />
+            <ActivePanel key={horse.id} {...{ world: w, ready, act }} />
           )}
           <GoalsPanel {...{ world: w, ready, act }} />
         </>
       )}
+      {c.portfolio && (
+        <>
+          <ProgramPanel world={w} />
+          <WorldRecords world={w} />
+        </>
+      )}
       <p className="fine scope-note">
-        P2試作：一頭・2歳市場〜3歳8月。東京の芝1600mと中山のダート1800m。競走日程・費用・賞金は試作の設定です。有馬記念などの大目標、複数所有・死亡・繁殖は後続段階で加わります。
+        {c.portfolio
+          ? "P3試作：主要5場・芝4路線とダート2路線・通年番組・複数所有。契約と費用はゲーム用の設定です。健康・死亡・売却・引退はP4、繁殖はP5以降で加わります。"
+          : "P2試作：一頭・2歳市場〜3歳8月。通年番組へ引き継ぐと、複数所有と主要5場の競走が加わります。"}
       </p>
     </>
   );
@@ -243,7 +301,13 @@ function MarketPanel({ world: w, ready, act }: Props) {
   );
   useEffect(() => setSelected(market.lots[0]?.horseId ?? ""), [market.id]);
   const lot = market.lots.find((l) => l.horseId === selected);
-  const projected = forecast(w, 700000, limit * 10000);
+  const projected = forecast(
+    w,
+    (w.core.career?.portfolio
+      ? contracts(w).reduce((n, c) => n + c.monthlyYen, 0)
+      : 0) + 700000,
+    limit * 10000,
+  );
   return (
     <section>
       <p className="intro">
@@ -317,7 +381,7 @@ function MarketPanel({ world: w, ready, act }: Props) {
               <input
                 type="number"
                 min={lot ? lot.askingYen / 10000 : 0}
-                max={10000}
+                max={50000}
                 step={10}
                 required
                 value={limit}
@@ -346,13 +410,18 @@ function MarketPanel({ world: w, ready, act }: Props) {
         </p>
         <p className="fine">
           預託候補：佐伯修司 月70万円（長く走るため慎重に）／三原葵
-          月85万円（実戦で反応を探る）。ともに1頭の受入枠があります。
+          月85万円（実戦で反応を探る）。
+          {w.core.career?.portfolio
+            ? "受入枠は各6頭、合計12頭です。"
+            : "ともに1頭の受入枠があります。"}
         </p>
         <button
           disabled={!ready}
           onClick={() => void act({ type: "next-market" })}
         >
-          今回は見送り、次の市場へ（14日後）
+          {w.core.career?.portfolio
+            ? "次回市場の所見を受け取る（開催日以降）"
+            : "今回は見送り、次の市場へ（14日後）"}
         </button>
       </div>
     </section>
@@ -412,14 +481,26 @@ function TrainerPanel({ world: w, ready, act }: Props) {
             <p className="eyebrow">{t.stable}</p>
             <h3>{t.name}</h3>
             <p>{t.philosophy}</p>
-            <p>{t.constraint}</p>
+            <p>
+              {w.core.career?.portfolio
+                ? `現在の受入 ${contracts(w).filter((c) => c.trainerId === t.id).length}/6頭。相談は原則${t.reviewDays}日ごと。`
+                : t.constraint}
+            </p>
             <strong>月額 {yen(t.monthlyYen)}</strong>
             <p className="fine">
               月末締め・翌月7日払い。開始時の登録手続き10万円。初回報告は入厩15日後。
             </p>
             <p>
               賞金ゼロの12か月後の残高{" "}
-              {yen(forecast(w, t.monthlyYen, 100000).rows.at(-1)!.balanceYen)}
+              {yen(
+                forecast(
+                  w,
+                  (w.core.career?.portfolio
+                    ? contracts(w).reduce((n, c) => n + c.monthlyYen, 0)
+                    : 0) + t.monthlyYen,
+                  100000,
+                ).rows.at(-1)!.balanceYen,
+              )}
             </p>
             <button
               className="primary"
@@ -438,15 +519,69 @@ function ActivePanel({ world: w, ready, act }: Props) {
   const c = w.core.career!,
     consult = openConsultation(w),
     race = activeRace(w);
-  const candidates = opportunities(w);
+  const [candidateRoute, setCandidateRoute] = useState<string>("plan");
+  const allCandidates = opportunities(w);
+  const candidates = c.portfolio
+    ? allCandidates
+        .filter(
+          (r) =>
+            candidateRoute === "all" ||
+            routeFor(r.surface, r.distance) ===
+              (candidateRoute === "plan" ? c.route : candidateRoute) ||
+            (candidateRoute === "plan" &&
+              c.route === "turf-long" &&
+              r.terms?.maxAge === 2 &&
+              r.terms.route === "turf-middle"),
+        )
+        .sort((a, b) => {
+          const h = ownedHorse(w)!;
+          return (
+            Math.abs(
+              [
+                "新馬",
+                "未勝利",
+                "1勝クラス",
+                "2勝クラス",
+                "3勝クラス",
+                "オープン",
+              ].indexOf(a.raceClass) -
+                [
+                  "新馬",
+                  "未勝利",
+                  "1勝クラス",
+                  "2勝クラス",
+                  "3勝クラス",
+                  "オープン",
+                ].indexOf(classFor(h)),
+            ) -
+            Math.abs(
+              [
+                "新馬",
+                "未勝利",
+                "1勝クラス",
+                "2勝クラス",
+                "3勝クラス",
+                "オープン",
+              ].indexOf(b.raceClass) -
+                [
+                  "新馬",
+                  "未勝利",
+                  "1勝クラス",
+                  "2勝クラス",
+                  "3勝クラス",
+                  "オープン",
+                ].indexOf(classFor(h)),
+            )
+          );
+        })
+    : allCandidates;
+  const waitingForOthers = !!c.portfolio && allPending(w).length > 0;
   const [raceId, setRaceId] = useState("");
   const [reason, setReason] = useState("愛馬の回復と今年の目標を大切にしたい");
   const [route, setRoute] = useState<Route>(c.route);
   const proposed =
     candidates.find((r) => r.id === raceId) ??
-    candidates.find(
-      (r) => (r.surface === "芝" ? "turf-mile" : "dirt-middle") === c.route,
-    ) ??
+    candidates.find((r) => routeFor(r.surface, r.distance) === c.route) ??
     candidates[0];
   const reasons = proposed
     ? eligibility(w, proposed)
@@ -472,9 +607,22 @@ function ActivePanel({ world: w, ready, act }: Props) {
             登録期限 {race.deadline} ／ 選出 {race.selectionDate} ／ 競走日{" "}
             {race.date}
           </p>
+          {race.terms && (
+            <>
+              <RaceTermsPanel
+                race={race as SeasonOpportunity}
+                world={w}
+                showEligibility={false}
+              />
+              <p className="fine">
+                {(race as SeasonRace).selectionNotes[c.horseId!] ??
+                  "締切後に他馬主の申込みと照合します。"}
+              </p>
+            </>
+          )}
           {race.result ? (
             <>
-              <RaceView race={race} />
+              <RaceView key={race.id} race={race} />
               <p>
                 馬主受取 {yen(race.prizeYen!)}
                 。結果は保存済みです。観戦方法で結果は変わりません。
@@ -526,7 +674,7 @@ function ActivePanel({ world: w, ready, act }: Props) {
             次の相談までの預託料目安{" "}
             {yen(
               Math.ceil(
-                (contracts(w)[0].monthlyYen *
+                (contracts(w).find((t) => t.horseId === c.horseId)!.monthlyYen *
                   TRAINERS[c.trainerId!].reviewDays) /
                   30,
               ),
@@ -545,6 +693,27 @@ function ActivePanel({ world: w, ready, act }: Props) {
           <div className="choice-grid">
             <article>
               <h3>競走で確かめる</h3>
+              {c.portfolio && (
+                <label>
+                  候補の路線
+                  <select
+                    value={candidateRoute}
+                    disabled={!ready}
+                    onChange={(e) => {
+                      setCandidateRoute(e.target.value);
+                      setRaceId("");
+                    }}
+                  >
+                    <option value="plan">今の計画に沿う候補</option>
+                    <option value="all">全路線を比較</option>
+                    {Object.entries(ROUTES).map(([id, label]) => (
+                      <option key={id} value={id}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label>
                 次の競走候補
                 <select
@@ -564,6 +733,12 @@ function ActivePanel({ world: w, ready, act }: Props) {
                   登録期限 {proposed.deadline}
                   。登録5万円・出走時15万円。走った後は回復期間が必要です。
                 </p>
+              )}
+              {proposed?.terms && (
+                <RaceTermsPanel
+                  race={proposed as SeasonOpportunity}
+                  world={w}
+                />
               )}
               {reasons.map((s) => (
                 <p key={s} className="fine">
@@ -635,23 +810,35 @@ function ActivePanel({ world: w, ready, act }: Props) {
         <div>
           <p className="eyebrow">次の時間へ</p>
           <p>
-            {consult
-              ? "相談を決めてから日付を進めます。"
-              : race?.status === "result"
-                ? "精算後に次の方針を相談します。"
-                : `次の確認：${race ? (race.status === "registered" ? race.selectionDate : race.date) : c.nextReview}。請求・選出・競走でも止まります。`}
+            {waitingForOthers && !consult && race?.status !== "result"
+              ? "別の愛馬に未決の確認があります。所有馬の一覧から切り替えてください。"
+              : consult
+                ? "相談を決めてから日付を進めます。"
+                : race?.status === "result"
+                  ? "精算後に次の方針を相談します。"
+                  : `次の確認：${race ? (race.status === "registered" ? race.selectionDate : race.date) : c.nextReview}。請求・選出・競走でも止まります。`}
           </p>
         </div>
         <div className="actions">
           <button
-            disabled={!ready || !!consult || race?.status === "result"}
+            disabled={
+              !ready ||
+              !!consult ||
+              race?.status === "result" ||
+              waitingForOthers
+            }
             onClick={() => void act({ type: "advance", days: 7 })}
           >
             1週間進める
           </button>
           <button
             className="primary"
-            disabled={!ready || !!consult || race?.status === "result"}
+            disabled={
+              !ready ||
+              !!consult ||
+              race?.status === "result" ||
+              waitingForOthers
+            }
             onClick={() =>
               void act({ type: "advance", days: daysToNextMonth(w.core.date) })
             }
@@ -753,13 +940,14 @@ export function FinancePanel({ world: w, ready, act }: Props) {
       </p>
       {contracts(w).map((c) => (
         <p key={c.id}>
-          {c.trainer}：月額 {yen(c.monthlyYen)} · 未請求{" "}
-          {yen(c.accruedYen ?? 0)} · 月末締め、翌月7日払い
+          {(w.entities[c.horseId] as Horse).name} · {c.trainer}：月額{" "}
+          {yen(c.monthlyYen)} · 未請求 {yen(c.accruedYen ?? 0)} ·
+          月末締め、翌月7日払い
         </p>
       ))}
       <h2>賞金ゼロの12か月予測</h2>
       <p className="fine">
-        現在の契約・請求・固定拠出が続く前提。将来の未登録レースや新しい支出は含みません。引当後の資金は、まだ支払っていない請求も差し引きます。
+        現在の契約・請求・固定拠出が続く前提。登録済みの競走は遠征費も仮置きします（除外・取消で変動）。将来の未登録レースや新しい支出は含みません。引当後の資金は、まだ支払っていない請求も差し引きます。
       </p>
       {p.firstShortage && (
         <p className="notice">
@@ -794,7 +982,8 @@ export function FinancePanel({ world: w, ready, act }: Props) {
           <h2>未払いの請求</h2>
           {invoices(w).map((i) => (
             <p key={i.id}>
-              {i.description} · 期限 {i.dueDate} · {yen(i.amountYen)}
+              {(w.entities[i.horseId] as Horse).name} · {i.description} · 期限{" "}
+              {i.dueDate} · {yen(i.amountYen)}
             </p>
           ))}
           <button

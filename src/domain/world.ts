@@ -1,3 +1,10 @@
+import {
+  applySeason,
+  upgradeSeason,
+  validateSeason,
+  validateSeasonEntity,
+} from "./season.ts";
+import type { NpcOwner } from "./season-types.ts";
 import type {
   Career,
   CareerCommand,
@@ -12,7 +19,7 @@ import {
   validateCareerEntity,
 } from "./career.ts";
 export type Entity =
-  Horse | Contract | LedgerEntry | JournalEvent | CareerEntity;
+  Horse | Contract | LedgerEntry | JournalEvent | CareerEntity | NpcOwner;
 export type Horse = {
   kind: "horse";
   id: string;
@@ -60,8 +67,8 @@ export type JournalEvent = {
 };
 export type Core = {
   schemaVersion: 1;
-  engineVersion: "owner-p1" | "owner-p2";
-  rulesetVersion: "foundation-2026" | "prototype-2026";
+  engineVersion: "owner-p1" | "owner-p2" | "owner-p3";
+  rulesetVersion: "foundation-2026" | "prototype-2026" | "calendar-2026";
   career?: Career;
   saveId: string;
   worldSeed: number;
@@ -152,7 +159,9 @@ export function validateWorld(value: unknown): asserts value is World {
       ((c.engineVersion === "owner-p1" &&
         c.rulesetVersion === "foundation-2026") ||
         (c.engineVersion === "owner-p2" &&
-          c.rulesetVersion === "prototype-2026")),
+          c.rulesetVersion === "prototype-2026") ||
+        (c.engineVersion === "owner-p3" &&
+          c.rulesetVersion === "calendar-2026")),
     "この版の保存データには対応していません。",
   );
   check(
@@ -201,7 +210,7 @@ export function validateWorld(value: unknown): asserts value is World {
           validDate(e.birthDate) &&
           e.birthDate <= c.date &&
           (e.ownerId === o.id ||
-            (c.engineVersion === "owner-p2" && short(e.ownerId))) &&
+            (c.engineVersion !== "owner-p1" && short(e.ownerId))) &&
           ["mare", "stallion"].includes(e.sex as string) &&
           short(e.location, 80) &&
           typeof e.coat === "string" &&
@@ -253,17 +262,20 @@ export function validateWorld(value: unknown): asserts value is World {
       );
       if (e.horseId !== undefined)
         check(refers(es, e.horseId, "horse"), "出来事の馬が存在しません。");
-    } else if (c.engineVersion === "owner-p2")
+    } else if (c.engineVersion === "owner-p3")
+      validateSeasonEntity(e, es, c.date as string);
+    else if (c.engineVersion === "owner-p2")
       validateCareerEntity(e, es, c.date as string);
     else throw new Error("未対応の記録種別です。");
   }
   check(
-    (c.engineVersion === "owner-p2" || horseCount > 0) &&
+    (c.engineVersion !== "owner-p1" || horseCount > 0) &&
       total >= 0 &&
       money(total),
     "所有馬または残高が不正です。",
   );
   if (c.engineVersion === "owner-p2") validateCareer(value as World);
+  if (c.engineVersion === "owner-p3") validateSeason(value as World);
 }
 export function createWorld(
   ids: { save: string; owner: string; horse: string; contract: string },
@@ -341,6 +353,9 @@ export function applyCommand(
 ): World {
   validateWorld(world);
   check(UUID.test(id), "命令IDが不正です。");
+  if (command.type === "upgrade-season") return upgradeSeason(world, id);
+  if (world.core.engineVersion === "owner-p3")
+    return applySeason(world, command, id);
   if (command.type === "upgrade") return upgradeWorld(world, id);
   if (world.core.engineVersion === "owner-p2")
     return applyCareer(world, command, id);

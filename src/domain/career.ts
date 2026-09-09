@@ -52,7 +52,7 @@ function money(value: unknown): value is number {
     (value as number) <= 1e12
   );
 }
-function event(
+export function event(
   w: World,
   id: string,
   body: string,
@@ -66,7 +66,7 @@ function event(
     ...(horseId ? { horseId } : {}),
   };
 }
-function newMarket(w: World) {
+export function newMarket(w: World) {
   const id = `market:${w.core.date}`;
   const market: Market = { kind: "market", id, date: w.core.date, lots: [] };
   const names = [
@@ -215,28 +215,49 @@ export function upgradeWorld(world: World, id: string) {
 }
 export function openConsultation(w: World) {
   return Object.values(w.entities).find(
-    (e): e is Consultation => e.kind === "consultation" && !e.resolution,
+    (e): e is Consultation =>
+      e.kind === "consultation" &&
+      !e.resolution &&
+      (!w.core.career?.portfolio || e.horseId === w.core.career.horseId),
   );
 }
 export function activeRace(w: World) {
   return Object.values(w.entities).find(
     (e): e is Race =>
       e.kind === "race" &&
-      ["registered", "selected", "result"].includes(e.status),
+      ["registered", "selected", "result"].includes(e.status) &&
+      (!w.core.career?.portfolio ||
+        ("entries" in e
+          ? (e as import("./season-types.ts").SeasonRace).ownedIds.includes(
+              w.core.career.horseId!,
+            ) &&
+            !(e as import("./season-types.ts").SeasonRace).excludedIds.includes(
+              w.core.career.horseId!,
+            ) &&
+            !(
+              e as import("./season-types.ts").SeasonRace
+            ).cancelledIds.includes(w.core.career.horseId!)
+          : e.horseId === w.core.career.horseId)),
   );
 }
-function report(w: World, id: string) {
+export function report(w: World, id: string) {
   if (openConsultation(w)) return;
   const h = ownedHorse(w)!;
   const career = w.core.career!;
   const trainer = TRAINERS[career.trainerId!];
   const past = Object.values(w.entities)
     .filter(
-      (e): e is Consultation => e.kind === "consultation" && !!e.resolution,
+      (e): e is Consultation =>
+        e.kind === "consultation" && !!e.resolution && e.horseId === h.id,
     )
     .sort((a, b) => b.date.localeCompare(a.date));
   const races = Object.values(w.entities)
-    .filter((e): e is Race => e.kind === "race" && e.status === "settled")
+    .filter(
+      (e): e is Race =>
+        e.kind === "race" &&
+        e.status === "settled" &&
+        !!e.result?.some((r) => r.horseId === h.id),
+    )
     .sort((a, b) => b.date.localeCompare(a.date));
   const last = races[0];
   const rank = last?.result?.findIndex((r) => r.horseId === h.id);
@@ -269,7 +290,7 @@ function report(w: World, id: string) {
       : "最初の相談です。これからの合意を、この馬の記録に残していきましょう。",
   };
 }
-function addInvoice(
+export function addInvoice(
   w: World,
   id: string,
   amountYen: number,
@@ -290,7 +311,7 @@ function addInvoice(
     paid: false,
   };
 }
-function requireBudget(w: World, amount: number) {
+export function requireBudget(w: World, amount: number) {
   check(
     cash(w) - debt(w) - reserve(w) >= amount,
     "未払費用と引当を除いた資金が不足します。低い購入上限、出走の見送り、または活動終了を選べます。",
@@ -426,7 +447,12 @@ function advance(w: World, days: number, id: string) {
     `${moved}日進み、${w.core.date}で止まりました。${career.pause ?? "報告・請求・競走の予定を確認しました。"}`,
   );
 }
-export function applyCareer(world: World, command: Command, id: string): World {
+export function applyCareer(
+  world: World,
+  command: Command,
+  id: string,
+  finalize = true,
+): World {
   const w = structuredClone(world),
     c = w.core.career!;
   check(c, "経歴の設定がありません。");
@@ -718,7 +744,7 @@ export function applyCareer(world: World, command: Command, id: string): World {
     h.name = command.name.trim();
     event(w, id, `愛馬を「${h.name}」と名付けました。`);
   } else throw new Error("未対応の操作です。");
-  validateWorld(w);
+  if (finalize) validateWorld(w);
   return w;
 }
 // Input validation runs on cloud loads, backups, pending recovery, and after every command.
@@ -900,44 +926,46 @@ export function validateCareer(w: World) {
     w.entities[c.marketId]?.kind === "market",
     "市場への参照がありません。",
   );
-  const owned = horses(w);
-  check(owned.length <= 1, "P2では一頭を所有できます。");
-  if (["boarding", "active"].includes(c.stage))
-    check(
-      owned.length === 1 && owned[0].id === c.horseId,
-      "所有と進行状態が一致しません。",
+  if (!c.portfolio) {
+    const owned = horses(w);
+    check(owned.length <= 1, "P2では一頭を所有できます。");
+    if (["boarding", "active"].includes(c.stage))
+      check(
+        owned.length === 1 && owned[0].id === c.horseId,
+        "所有と進行状態が一致しません。",
+      );
+    if (c.stage === "purchase")
+      check(
+        w.entities[c.horseId!]?.kind === "horse" &&
+          owned.length === 0 &&
+          invoices(w).some((i) => i.category === "purchase"),
+        "落札後の債務がありません。",
+      );
+    if (c.stage === "market")
+      check(!c.horseId && owned.length === 0, "市場と所有が一致しません。");
+    if (c.stage === "active")
+      check(
+        c.trainerId &&
+          Object.hasOwn(TRAINERS, c.trainerId) &&
+          contracts(w).length === 1 &&
+          contracts(w)[0].horseId === c.horseId,
+        "預託契約が一致しません。",
+      );
+    const pending = Object.values(w.entities).filter(
+      (e) => e.kind === "consultation" && !e.resolution,
     );
-  if (c.stage === "purchase")
-    check(
-      w.entities[c.horseId!]?.kind === "horse" &&
-        owned.length === 0 &&
-        invoices(w).some((i) => i.category === "purchase"),
-      "落札後の債務がありません。",
+    const racing = Object.values(w.entities).filter(
+      (e) =>
+        e.kind === "race" &&
+        ["registered", "selected", "result"].includes(e.status),
     );
-  if (c.stage === "market")
-    check(!c.horseId && owned.length === 0, "市場と所有が一致しません。");
-  if (c.stage === "active")
     check(
-      c.trainerId &&
-        Object.hasOwn(TRAINERS, c.trainerId) &&
-        contracts(w).length === 1 &&
-        contracts(w)[0].horseId === c.horseId,
-      "預託契約が一致しません。",
+      pending.length <= 1 &&
+        racing.length <= 1 &&
+        !(pending.length && racing.length),
+      "未決の相談・競走が重複しています。",
     );
-  const pending = Object.values(w.entities).filter(
-    (e) => e.kind === "consultation" && !e.resolution,
-  );
-  const racing = Object.values(w.entities).filter(
-    (e) =>
-      e.kind === "race" &&
-      ["registered", "selected", "result"].includes(e.status),
-  );
-  check(
-    pending.length <= 1 &&
-      racing.length <= 1 &&
-      !(pending.length && racing.length),
-    "未決の相談・競走が重複しています。",
-  );
+  }
   for (const e of Object.values(w.entities)) {
     if (e.kind === "horse") {
       const d = e.details;

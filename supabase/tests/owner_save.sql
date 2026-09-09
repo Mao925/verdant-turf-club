@@ -32,6 +32,12 @@ begin
  perform pg_temp.check_ok((r->>'revision')::int=2,'retry returns current committed head');
  for i in 2..6 loop perform public.commit_owner_save(sid,gen_random_uuid(),i,core,entities,true);end loop;
  perform pg_temp.check_ok((select count(*) from public.owner_checkpoints)=3,'checkpoint retention bounded');
+ core:=core||'{"engineVersion":"owner-p3","rulesetVersion":"calendar-2026"}'::jsonb;
+ r:=public.commit_owner_save(sid,gen_random_uuid(),7,core,'[{"id":"npc-owner:1","kind":"npc-owner","name":"fictional"}]',false);
+ perform pg_temp.check_ok((r->>'revision')::int=8,'P3 version accepted');
+ perform pg_temp.check_ok((select body->>'kind' from public.owner_entities where id='npc-owner:1')='npc-owner','P3 entity accepted');
+ r:=public.commit_owner_save(sid,cid,0,core||'{"engineVersion":"owner-p1","rulesetVersion":"foundation-2026"}'::jsonb,entities,false);
+ perform pg_temp.check_ok((r->>'revision')::int=8,'old P1 retry stays idempotent after P3 upgrade');
 end $$;
 select set_config('request.jwt.claim.sub','20000000-0000-4000-8000-000000000002',true);
 select pg_temp.check_ok((select count(*) from public.owner_saves)=0,'other owner cannot read head');

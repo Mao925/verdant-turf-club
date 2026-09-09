@@ -1,3 +1,4 @@
+import { readFileSync, writeFileSync } from "node:fs";
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { activeRace, openConsultation } from "../src/domain/career";
 import { backup, validateWorld, type Envelope } from "../src/domain/world";
@@ -114,12 +115,21 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
   await session(secondContext);
   const second = await secondContext.newPage();
   second.on("requestfailed", (r) => {
-    if (r.url().includes("/rpc/commit_owner_save"))
+    if (r.url().includes("/rpc/"))
       console.log("Live request failure:", r.failure()?.errorText);
   });
-  second.on("response", (r) => {
-    if (r.url().includes("/rpc/commit_owner_save"))
-      console.log("Live conflict endpoint response:", r.status());
+  second.on("response", async (r) => {
+    if (r.url().includes("/rpc/")) {
+      console.log(
+        "Live RPC endpoint response:",
+        new URL(r.url()).pathname,
+        r.status(),
+      );
+      if (!r.ok()) {
+        const body = await r.json().catch(() => ({}));
+        console.log("Live RPC error code:", body.code);
+      }
+    }
   });
   await second.goto("/");
   await saved(second);
@@ -214,6 +224,59 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
     { headers },
   );
   expect(await others.json()).toEqual([]);
+  if (process.env.P3_LIVE_WORLD) {
+    const year = JSON.parse(readFileSync(process.env.P3_LIVE_WORLD, "utf8"));
+    validateWorld(year);
+    const current = await load();
+    year.core.saveId = current.state.core.saveId;
+    let revision = current.revision;
+    const writes: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const start = performance.now();
+      const response = await fetch(url + "/rest/v1/rpc/commit_owner_save", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          p_save_id: year.core.saveId,
+          p_command_id: crypto.randomUUID(),
+          p_expected_revision: revision,
+          p_core: year.core,
+          p_upserts: Object.values(year.entities),
+          p_replace: true,
+        }),
+      });
+      expect(response.ok).toBe(true);
+      const result = await response.json();
+      expect(result.revision).toBe(revision + 1);
+      revision = result.revision;
+      writes.push(performance.now() - start);
+    }
+    const start = performance.now();
+    const resumed = await load();
+    const loadMs = performance.now() - start;
+    expect(resumed.state).toEqual(year);
+    const pageStart = performance.now();
+    await second.reload();
+    await saved(second);
+    const reloadMs = performance.now() - pageStart;
+    await second
+      .getByRole("button", { name: "愛馬と予定", exact: true })
+      .click();
+    await expect(second.locator(".horse-roster button")).toHaveCount(4);
+    const proof = {
+      kind: "real Supabase test account, one-year P3 world and explicit restores; HTTP latency on this Mac",
+      saveBytes: Buffer.byteLength(JSON.stringify(year)),
+      restoreWriteMs: writes,
+      loadMs,
+      browserReloadMs: reloadMs,
+      entities: Object.keys(year.entities).length,
+    };
+    writeFileSync(
+      "artifacts/p3-live-year.json",
+      JSON.stringify(proof, null, 2),
+    );
+    console.log(JSON.stringify(proof));
+  }
   await context.close();
   await secondContext.close();
 });

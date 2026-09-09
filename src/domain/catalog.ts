@@ -1,3 +1,5 @@
+import { seasonOpportunities, seasonEligibility } from "./program.ts";
+import type { SeasonOpportunity } from "./season-types.ts";
 import type { World, Horse } from "./world.ts";
 import { nextDate } from "./world.ts";
 import type { HorseDetails, Opportunity, TrainerId } from "./career-types.ts";
@@ -23,7 +25,11 @@ export const TRAINERS = {
   },
 };
 export const ROUTES = {
+  "turf-sprint": "芝・短距離",
   "turf-mile": "芝・マイル",
+  "turf-middle": "芝・中距離",
+  "turf-long": "芝・長距離",
+  "dirt-sprint": "ダート・短距離",
   "dirt-middle": "ダート・中距離",
 } as const;
 export function hash(text: string, seed = 2166136261) {
@@ -76,6 +82,8 @@ export function ownedHorse(world: World): Horse | undefined {
     : undefined;
 }
 export function opportunities(world: World): Opportunity[] {
+  if (world.core.engineVersion === "owner-p3")
+    return seasonOpportunities(world);
   const h = ownedHorse(world);
   if (!h?.details) return [];
   const d = h.details;
@@ -126,6 +134,7 @@ export function opportunities(world: World): Opportunity[] {
   return result.slice(0, 8);
 }
 export function eligibility(world: World, race: Opportunity) {
+  if (race.terms) return seasonEligibility(world, race as SeasonOpportunity);
   const h = ownedHorse(world);
   const reasons: string[] = [];
   if (!h?.details) return ["所有馬がいません。"];

@@ -1,6 +1,20 @@
-export type Route = "turf-mile" | "dirt-middle";
+import type {
+  CourseName,
+  Portfolio,
+  RaceClass,
+  RaceTerms,
+  SeasonCommand,
+} from "./season-types.ts";
+export type Route =
+  | "turf-sprint"
+  | "turf-mile"
+  | "turf-middle"
+  | "turf-long"
+  | "dirt-sprint"
+  | "dirt-middle";
 export type TrainerId = "saeki" | "mihara";
 export type Career = {
+  portfolio?: Portfolio;
   stage: "market" | "purchase" | "boarding" | "active" | "ended";
   marketId: string;
   horseId?: string;
@@ -14,6 +28,10 @@ export type Career = {
   pause?: string;
 };
 export type HorseDetails = {
+  earnedYen?: number;
+  fans?: number;
+  turn?: "left" | "right";
+  awards?: { date: string; amountYen: number; grade: string }[];
   speed: number;
   stamina: number;
   turf: number;
@@ -81,10 +99,11 @@ export type Race = {
   date: string;
   deadline: string;
   selectionDate: string;
-  course: "東京" | "中山";
+  course: CourseName;
+  terms?: RaceTerms;
   surface: "芝" | "ダート";
-  distance: 1600 | 1800;
-  raceClass: "新馬" | "未勝利" | "1勝クラス" | "オープン";
+  distance: number;
+  raceClass: RaceClass;
   name: string;
   horseId: string;
   status:
@@ -100,6 +119,7 @@ export type Opportunity = Omit<
 >;
 export type CareerEntity = Market | Invoice | Consultation | Race;
 export type CareerCommand =
+  | SeasonCommand
   | { type: "upgrade" }
   | { type: "bid"; horseId: string; limitYen: number; reason: string }
   | { type: "next-market" }

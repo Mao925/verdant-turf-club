@@ -138,7 +138,9 @@ function createHorse(horse) {
 }
 
 export class RaceScene {
-  constructor(container, horses, quality, onError) {
+  /** @param {any} container @param {any[]} horses @param {string} quality @param {(message: string)=>void} onError @param {{direction:string,surface:string}|null} [course] */
+  constructor(container, horses, quality, onError, course = null) {
+    this.course = course; this.fieldSize = horses.length;
     this.container = container; this.portrait = false; this.mode = 'broadcast'; this.selected = null; this.onError = onError;
     this.scene = new THREE.Scene(); this.scene.background = new THREE.Color('#b5d7e0');
     this.scene.fog = new THREE.Fog('#bdd9d7', 150, 410);
@@ -146,7 +148,7 @@ export class RaceScene {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.domElement.setAttribute('aria-label', '8頭の馬と騎手が走る3D芝コース');
+    this.renderer.domElement.setAttribute('aria-label', `${horses.length}頭の馬と騎手が走る3Dコース`);
     this.renderer.domElement.setAttribute('role', 'img'); container.prepend(this.renderer.domElement);
     this.renderer.domElement.addEventListener('webglcontextlost', event => { event.preventDefault(); onError('3D描画が中断されました。ページを再読み込みしてください。保存状況を確認してから再読み込みしてください。'); });
     this.camera = new THREE.PerspectiveCamera(47, 1, .2, 650);
@@ -166,7 +168,7 @@ export class RaceScene {
     const world = this.scene;
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), material('#709b56'));
     ground.rotation.x = -Math.PI / 2; ground.position.y = -.06; ground.receiveShadow = true; world.add(ground);
-    world.add(ovalSurface(-7.5, 7.5, '#52883d', .025, true));
+    world.add(ovalSurface(-7.5, 7.5, this.course?.surface === 'ダート' ? '#ad956b' : '#52883d', .025, this.course?.surface !== 'ダート'));
     world.add(ovalSurface(7.55, 12, '#c6bc98', .01));
     world.add(ovalSurface(-9.5, -7.6, '#8faf65', .03));
     // Subtle grass grain, generated locally with a fixed seed.
@@ -251,7 +253,7 @@ export class RaceScene {
       for (let j = 0; j < 4; j++) { const m = ellipsoid(cloud, '#e9f0e7', j * 6, random() * 2, 0, 8, 3.2, 4); m.castShadow = false; }
       world.add(cloud);
     }
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; !this.course && i <= 4; i++) {
       const p = trackPoint(TRACK_LENGTH * i / 5, -8.8);
       const marker = sign(world, String(1600 - i * 300), p.x, 1.8, p.z, 2.4, 1.1, '#315843', '#f0eddb'); marker.rotation.y = p.angle;
     }
@@ -279,12 +281,17 @@ export class RaceScene {
     if (!width || !height) return;
     this.camera.aspect = width / height; this.camera.updateProjectionMatrix(); this.renderer.setSize(width, height);
   }
+  coursePoint(distance, lane = 0) {
+    if (!this.course || this.course.direction === 'right') return trackPoint(distance, lane);
+    const p = trackPoint(-distance, lane);
+    return {...p, dx: -p.dx, dz: -p.dz, angle: Math.atan2(-p.dx, -p.dz)};
+  }
   update(samples, time, dt, racing, selected, raceTime = 0) {
     this.selected = selected;
     const leaderIndex = samples.reduce((best, h, i) => h.d > samples[best].d ? i : best, 0);
     const chosen = (selected || leaderIndex + 1) - 1;
     for (let i = 0; i < this.horses.length; i++) {
-      const horse = this.horses[i], state = samples[i], p = trackPoint(state.d - 1.85, state.lane);
+      const horse = this.horses[i], state = samples[i], p = this.coursePoint(state.d - 1.85, state.lane);
       horse.root.position.set(p.x, 0, p.z); horse.root.rotation.y = p.angle;
       const amplitude = Math.min(1, state.v / 9), phase = (racing ? state.d * 1.25 : time * 1.5) + i * .72;
       horse.body.position.y = amplitude * (.1 + Math.sin(phase * 2) * .085);
@@ -297,7 +304,7 @@ export class RaceScene {
       const muzzleZ = .63 + .68 * Math.sin(neckPitch) + 1.03 * Math.cos(neckPitch);
       const muzzleExtent = Math.hypot(.225 * Math.sin(neckPitch + bodyPitch), .33 * Math.cos(neckPitch + bodyPitch));
       const noseOffset = muzzleY * Math.sin(bodyPitch) + muzzleZ * Math.cos(bodyPitch) + muzzleExtent;
-      const anchored = trackPoint(state.d - noseOffset, state.lane);
+      const anchored = this.coursePoint(state.d - noseOffset, state.lane);
       horse.root.position.set(anchored.x, 0, anchored.z); horse.root.rotation.y = anchored.angle;
       for (const leg of horse.legs) {
         const a = phase + (leg.front ? 0 : 2.2) + (leg.side === 1 ? .68 : 0);
@@ -312,11 +319,11 @@ export class RaceScene {
       horse.arrow.position.y = 4.55 + Math.sin(time * 3) * .12;
       horse.badge.material.opacity = selected && selected !== i + 1 ? .76 : 1;
     }
-    this.gate.visible = !this.portrait && (!racing || raceTime < 5);
+    this.gate.visible = !this.course && !this.portrait && (!racing || raceTime < 5);
     this.gate.position.y = racing ? -Math.max(0, raceTime - 1.4) * 4 : 0;
     this.doors.forEach(({ door, side }) => { door.rotation.y = racing ? side * Math.min(Math.PI * .48, raceTime * 5) : 0; });
     const focus = this.horses[chosen].root.position;
-    const p = trackPoint(samples[chosen].d - 1.85, samples[chosen].lane);
+    const p = this.coursePoint(samples[chosen].d - 1.85, samples[chosen].lane);
     const targetPos = new THREE.Vector3(), targetLook = new THREE.Vector3();
     if (this.portrait) {
       targetPos.set(focus.x + 3, 4.2, focus.z + 11);
@@ -326,11 +333,11 @@ export class RaceScene {
       targetLook.set(focus.x + p.dx * 4, 1.7, focus.z + p.dz * 4);
     } else if (this.mode === 'overhead') {
       const min = Math.min(...samples.map(s => s.d)), max = Math.max(...samples.map(s => s.d));
-      const mid = trackPoint((min + max) / 2);
+      const mid = this.coursePoint((min + max) / 2);
       const height = Math.min(130, Math.max(47, (max - min) * .8 + 35));
       targetPos.set(mid.x + 12, height, mid.z + 23); targetLook.set(mid.x, 0, mid.z);
     } else {
-      const view = racing ? trackPoint(samples[leaderIndex].d - 1.85) : trackPoint(-1.85);
+      const view = racing ? this.coursePoint(samples[leaderIndex].d - 1.85) : this.coursePoint(-1.85);
       const margin = this.camera.aspect < 1 ? 30 : racing ? 24 : 17;
       const forward = racing ? 18 : 14;
       const cameraHeight = racing ? (view.z < -28 && Math.abs(view.x) < 90 ? 21 : 9) : 7.2;

@@ -103,11 +103,33 @@ export function forecast(
   const current = contracts(world);
   const monthly =
     monthlyOverride ?? current.reduce((s, c) => s + c.monthlyYen, 0);
+  const monthlyRates =
+    monthlyOverride === undefined
+      ? current.map((c) => c.monthlyYen)
+      : !world.core.career?.portfolio
+        ? [monthlyOverride]
+        : [
+            ...current.map((c) => c.monthlyYen),
+            monthlyOverride - current.reduce((s, c) => s + c.monthlyYen, 0),
+          ].filter((n) => n > 0);
   let accrued = current.reduce((s, c) => s + (c.accruedYen ?? 0), 0);
   const due = invoices(world).map((i) => ({
     date: i.dueDate,
     amount: i.amountYen,
   }));
+  if (world.core.career?.portfolio)
+    for (const e of Object.values(world.entities)) {
+      if (e.kind !== "race" || !["registered", "selected"].includes(e.status))
+        continue;
+      const race = e as import("./season-types.ts").SeasonRace;
+      const count = e.terms
+        ? race.ownedIds.filter(
+            (id) =>
+              !race.excludedIds.includes(id) && !race.cancelledIds.includes(id),
+          ).length
+        : 1;
+      if (count) due.push({ date: e.date, amount: 150000 * count });
+    }
   const rows: { date: string; balanceYen: number; freeYen: number }[] = [];
   let firstShortage: string | null = null;
   let date = world.core.date;
@@ -117,7 +139,7 @@ export function forecast(
     if (i === 0)
       for (const b of due.filter((b) => b.date < date)) balance -= b.amount;
     if (balance < 0 && !firstShortage) firstShortage = date;
-    accrued += dailyCharge(monthly, date);
+    accrued += monthlyRates.reduce((s, n) => s + dailyCharge(n, date), 0);
     const tomorrow = nextDate(date);
     if (date.slice(0, 7) !== tomorrow.slice(0, 7)) {
       due.push({ date: tomorrow.slice(0, 7) + "-07", amount: accrued });

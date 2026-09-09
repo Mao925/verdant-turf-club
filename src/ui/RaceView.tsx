@@ -1,8 +1,19 @@
+import { courseProfile } from "../domain/program";
+import type { SeasonRace } from "../domain/season-types";
 import { useEffect, useRef, useState } from "react";
 import type { Race } from "../domain/career-types";
 import { progressAt } from "../domain/racing";
 export function RaceView({ race }: { race: Race }) {
   const result = race.result!;
+  const ownedIds = race.terms
+    ? (race as SeasonRace).ownedIds.filter((id) => race.field.includes(id))
+    : [race.horseId];
+  const [follow, setFollow] = useState(ownedIds[0] ?? race.field[0]);
+  const followRef = useRef(follow);
+  useEffect(() => {
+    followRef.current = follow;
+  }, [follow]);
+  const profile = race.terms ? courseProfile(race) : undefined;
   const [mode, setMode] = useState<"light" | "3d">(() =>
     matchMedia("(max-width: 700px), (prefers-reduced-motion: reduce)").matches
       ? "light"
@@ -60,6 +71,7 @@ export function RaceView({ race }: { race: Race }) {
               setError(message);
               setMode("light");
             },
+            profile ? { ...profile, surface: race.surface } : null,
           );
           sceneRef.current = scene;
           scene.mode = "follow";
@@ -73,9 +85,21 @@ export function RaceView({ race }: { race: Race }) {
             const seconds = clock.current;
             const samples = rows.map((r, i) => ({
               d:
-                progressAt(r, seconds) * TRACK_LENGTH +
-                (Math.max(0, seconds - r.seconds) * TRACK_LENGTH) / r.seconds,
-              lane: ((i % 8) - 3.5) * 0.55,
+                (profile
+                  ? TRACK_LENGTH - (race.distance / profile.lap) * TRACK_LENGTH
+                  : 0) +
+                progressAt(r, seconds) *
+                  (profile
+                    ? (race.distance / profile.lap) * TRACK_LENGTH
+                    : TRACK_LENGTH) +
+                (Math.max(0, seconds - r.seconds) *
+                  (profile
+                    ? (race.distance / profile.lap) * TRACK_LENGTH
+                    : TRACK_LENGTH)) /
+                  r.seconds,
+              lane: race.terms
+                ? ((i % 9) - Math.min(8, rows.length - 1) / 2) * 1.5
+                : (i - 3.5) * 0.55,
               v:
                 seconds > 0 && seconds < r.seconds
                   ? race.distance / r.seconds
@@ -86,10 +110,13 @@ export function RaceView({ race }: { race: Race }) {
               now / 1000,
               Math.min((now - last) / 1000, 0.1),
               seconds > 0 && seconds < duration,
-              rows.findIndex((r) => r.horseId === race.horseId) + 1,
+              Math.max(
+                0,
+                rows.findIndex((r) => r.horseId === followRef.current),
+              ) + 1,
               seconds,
             );
-            scene.gate.visible = seconds < 5;
+            scene.gate.visible = !profile && seconds < 5;
             last = now;
             frame = requestAnimationFrame(draw);
           };
@@ -126,11 +153,11 @@ export function RaceView({ race }: { race: Race }) {
             {rows.map((r, i) => (
               <div
                 key={r.horseId}
-                className={`race-lane ${r.horseId === race.horseId ? "my-horse" : ""}`}
+                className={`race-lane ${ownedIds.includes(r.horseId) ? "my-horse" : ""}`}
               >
                 <span>
                   {i + 1} {r.name}
-                  {r.horseId === race.horseId ? "・愛馬" : ""}
+                  {ownedIds.includes(r.horseId) ? "・愛馬" : ""}
                 </span>
                 <div className="race-rail">
                   <i
@@ -146,6 +173,33 @@ export function RaceView({ race }: { race: Race }) {
         )}
       </div>
       <div className="replay-toolbar">
+        {ownedIds.length > 1 && (
+          <label>
+            追いかける愛馬
+            <select value={follow} onChange={(e) => setFollow(e.target.value)}>
+              {ownedIds.map((id) => (
+                <option key={id} value={id}>
+                  {result.find((r) => r.horseId === id)!.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {mode === "3d" && (
+          <label>
+            観戦カメラ
+            <select
+              defaultValue="follow"
+              onChange={(e) => {
+                if (sceneRef.current) sceneRef.current.mode = e.target.value;
+              }}
+            >
+              <option value="follow">愛馬を追う</option>
+              <option value="overhead">上空から全体を見る</option>
+              <option value="broadcast">中継カメラ</option>
+            </select>
+          </label>
+        )}
         <span>
           {time.toFixed(1)} / {duration.toFixed(1)} 秒
         </span>
@@ -190,14 +244,14 @@ export function RaceView({ race }: { race: Race }) {
           {result.map((r, i) => (
             <li
               key={r.horseId}
-              className={r.horseId === race.horseId ? "my-horse" : ""}
+              className={ownedIds.includes(r.horseId) ? "my-horse" : ""}
             >
               <strong>
                 {i + 1}着 {r.name}
               </strong>
               <span>
                 {r.seconds.toFixed(3)}秒
-                {r.horseId === race.horseId ? " · あなたの愛馬" : ""}
+                {ownedIds.includes(r.horseId) ? " · あなたの愛馬" : ""}
               </span>
             </li>
           ))}

@@ -1,3 +1,4 @@
+import { courseProfile } from "./program.ts";
 import { type World, type Horse } from "./world.ts";
 import { hash, random } from "./catalog.ts";
 import type { Race, RaceResult } from "./career-types.ts";
@@ -19,8 +20,28 @@ export function calculateRace(world: World, race: Race): RaceResult[] {
       );
       const ability =
         (d.speed * 0.65 + d.stamina * 0.35) * d[track] * fit * maturity;
+      const profile = race.terms ? courseProfile(race) : undefined;
+      const fatigue =
+        race.terms && h.ownerId !== world.core.owner.id && d.lastRaceDate
+          ? Math.max(
+              0,
+              d.fatigue -
+                (2 * (Date.parse(race.date) - Date.parse(d.lastRaceDate))) /
+                  86400000,
+            )
+          : d.fatigue;
+      const courseAdjustment = profile
+        ? (d.stamina - 65) * profile.rise * 0.0018 +
+          (d.speed - 65) * profile.straight * 0.000018 +
+          (d.stamina - d.speed) * profile.curveRatio * 0.002 +
+          (d.turn === profile.direction ? 0.04 : -0.02)
+        : 0;
       const metersPerSecond =
-        13.9 + ability * 0.033 - d.fatigue * 0.006 + (r() - 0.5) * 0.65;
+        13.9 +
+        ability * 0.033 -
+        fatigue * 0.006 +
+        (r() - 0.5) * 0.65 +
+        courseAdjustment;
       const seconds =
         Math.round((race.distance / metersPerSecond) * 1000) / 1000;
       const tendency = (r() - 0.5) * 0.28;
@@ -37,9 +58,15 @@ export function calculateRace(world: World, race: Race): RaceResult[] {
         name: h.name,
         coat: h.coat,
         silk:
-          horseId === race.horseId
+          h.ownerId === world.core.owner.id
             ? world.core.owner.silk
-            : ["#f4eee0", "#5483be", "#df614e", "#4a9774"][hash(horseId) % 4],
+            : world.entities[h.ownerId]?.kind === "npc-owner"
+              ? (
+                  world.entities[
+                    h.ownerId
+                  ] as import("./season-types.ts").NpcOwner
+                ).silk
+              : ["#f4eee0", "#5483be", "#df614e", "#4a9774"][hash(horseId) % 4],
         seconds,
         splits,
       };
@@ -61,6 +88,8 @@ export function prizeFor(race: Race, rank: number) {
     新馬: 7500000,
     未勝利: 5600000,
     "1勝クラス": 8000000,
+    "2勝クラス": 11900000,
+    "3勝クラス": 18400000,
     オープン: 16000000,
   }[race.raceClass];
   // Explicit prototype schedule, with a simplified 20% share for professionals.

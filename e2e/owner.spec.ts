@@ -82,7 +82,7 @@ test("PC: purchase, trainer, wait, multiple races, 3D/skip, goals, export and re
     page.getByRole("img", { name: "アオノシルベの3D表示" }),
   ).toBeVisible();
   await firstReport(page, db);
-  await page.screenshot({ path: "artifacts/p2-desktop.png", fullPage: true });
+  await page.screenshot({ path: "artifacts/p3-desktop.png", fullPage: true });
   await page.getByLabel("今回の判断の理由").fill("まずは待ってみる");
   await page
     .getByRole("button", { name: "今回は見送り、待つ", exact: true })
@@ -119,10 +119,10 @@ test("PC: purchase, trainer, wait, multiple races, 3D/skip, goals, export and re
     };
   });
   writeFileSync(
-    "artifacts/p2-browser-performance.json",
+    "artifacts/p3-browser-performance.json",
     JSON.stringify(
       {
-        kind: "Headless Chrome on this Mac, portrait plus 8-horse 3D replay; not a real-device guarantee",
+        kind: `Headless Chrome on this Mac, portrait plus ${activeRace(db.head!.state)!.field.length}-horse 3D replay; not a real-device guarantee`,
         ...rendering,
       },
       null,
@@ -131,10 +131,12 @@ test("PC: purchase, trainer, wait, multiple races, 3D/skip, goals, export and re
   );
 
   await page.getByRole("button", { name: "スキップして着順を見る" }).click();
-  await expect(page.locator(".race-results li")).toHaveCount(8);
+  await expect(page.locator(".race-results li")).toHaveCount(
+    activeRace(db.head!.state)!.field.length,
+  );
   expect(db.head!.revision).toBe(revision);
   expect(JSON.stringify(activeRace(db.head!.state)!.result)).toBe(before);
-  await page.screenshot({ path: "artifacts/p2-race.png", fullPage: true });
+  await page.screenshot({ path: "artifacts/p3-race.png", fullPage: true });
   await page.getByRole("button", { name: "結果を精算し、次の相談へ" }).click();
   await saved(page);
   await expect(page.locator(".consultation")).toContainText("着");
@@ -240,7 +242,7 @@ test("mobile: all economic decisions, light replay and second browser conflict",
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  await page.screenshot({ path: "artifacts/p2-mobile.png", fullPage: true });
+  await page.screenshot({ path: "artifacts/p3-mobile.png", fullPage: true });
   await page.getByLabel("検討する路線").selectOption("dirt-middle");
   await page.getByRole("button", { name: "この路線を相談する" }).click();
   await saved(page);
@@ -248,7 +250,9 @@ test("mobile: all economic decisions, light replay and second browser conflict",
   await runRace(page, db);
   await expect(page.locator(".race-lanes")).toBeVisible();
   await page.getByRole("button", { name: "スキップして着順を見る" }).click();
-  await expect(page.locator(".race-results li")).toHaveCount(8);
+  await expect(page.locator(".race-results li")).toHaveCount(
+    activeRace(db.head!.state)!.field.length,
+  );
   await page.getByRole("button", { name: "結果を精算し、次の相談へ" }).click();
   await saved(page);
   const c2 = await browser.newContext({
@@ -290,7 +294,7 @@ test("mobile: all economic decisions, light replay and second browser conflict",
     ),
   ).toBe(true);
   await second.screenshot({
-    path: "artifacts/p2-finance-mobile.png",
+    path: "artifacts/p3-finance-mobile.png",
     fullPage: true,
   });
   await c1.close();

@@ -784,3 +784,119 @@ select {
     font-size: 29px;
   }
 }
+
+.portfolio-panel {
+  margin: 1.8rem 0;
+  padding: 1.4rem;
+  background: #eef1e7;
+  border: 1px solid #d9dece;
+  border-radius: 12px;
+}
+.portfolio-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.portfolio-heading h2 {
+  margin-top: 0.2rem;
+}
+.portfolio-heading small {
+  font-size: 0.85rem;
+  font-weight: normal;
+}
+.horse-roster,
+.npc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.7rem;
+}
+.horse-roster button,
+.npc-grid button {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-align: left;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.horse-roster button.chosen {
+  background: #244b3c;
+  color: #fff;
+  border-color: #244b3c;
+}
+.horse-roster span,
+.npc-grid span {
+  font-size: 0.8rem;
+}
+.program-panel {
+  margin: 1.2rem 0;
+  padding: 1.3rem;
+  border: 1px solid #d9dece;
+  background: #fffdf7;
+  border-radius: 10px;
+}
+.program-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.program-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin: 1.2rem 0;
+}
+.program-filters label {
+  min-width: 0;
+}
+.calendar-table {
+  max-height: 420px;
+  overflow: auto;
+}
+.calendar-table table {
+  min-width: 660px;
+}
+.calendar-table th {
+  position: sticky;
+  top: 0;
+  background: #eaf0e6;
+  z-index: 1;
+}
+.calendar-table small {
+  display: block;
+  color: #697367;
+  font-size: 0.72rem;
+  margin-top: 0.3rem;
+}
+.race-terms {
+  padding: 0.8rem;
+  margin: 0.8rem 0;
+  background: #eef1e7;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+.inline-check {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+.inline-check input {
+  width: auto;
+}
+@media (max-width: 700px) {
+  .program-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .horse-roster,
+  .npc-grid {
+    grid-template-columns: 1fr;
+  }
+  .portfolio-panel,
+  .program-panel {
+    padding: 1rem;
+  }
+  .calendar-table {
+    max-height: 360px;
+  }
+}

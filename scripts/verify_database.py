@@ -23,9 +23,10 @@ grant execute on function auth.uid() to anon,authenticated;"""
         if p.returncode:raise RuntimeError(label+': '+p.stderr)
         print('PASS:',label,flush=True)
     core=json.dumps({'saveId':'30000000-0000-4000-8000-000000000003','schemaVersion':1,'engineVersion':'owner-p1','rulesetVersion':'foundation-2026','date':'2026-05-01'})
+    revision=int(sql("select revision from public.owner_saves where id='30000000-0000-4000-8000-000000000003'").stdout.strip())
     def concurrent_command():
         cmd=str(uuid.uuid4())
-        return sql(f"begin;set local role authenticated;select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);select public.commit_owner_save('30000000-0000-4000-8000-000000000003','{cmd}',7,'{core}','[]',false);commit;")
+        return sql(f"begin;set local role authenticated;select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);select public.commit_owner_save('30000000-0000-4000-8000-000000000003','{cmd}',{revision},'{core}','[]',false);commit;")
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         results=list(pool.map(lambda _:concurrent_command(),range(2)))
     assert sum(r.returncode==0 for r in results)==1,'exactly one concurrent writer must win'

@@ -11,10 +11,11 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:db": "python3 scripts/verify_database.py",
-    "format:check": "prettier --check src/domain src/engine src/application src/persistence src/ui src/main.tsx src/owner.css tests/owner.test.ts tests/career.test.ts e2e playwright.config.ts vitest.config.ts tsconfig.json scripts/measure-world.mjs scripts/measure-career.mjs",
+    "format:check": "prettier --check src/domain src/engine src/application src/persistence src/ui src/main.tsx src/owner.css tests/owner.test.ts tests/career.test.ts e2e playwright.config.ts vitest.config.ts tsconfig.json scripts/measure-world.mjs scripts/measure-career.mjs tests/season.test.ts scripts/measure-season.mjs",
     "measure": "node --experimental-strip-types scripts/measure-world.mjs",
     "measure:p2": "node --experimental-strip-types scripts/measure-career.mjs",
-    "backup": "python3 scripts/backup-cloud.py"
+    "backup": "python3 scripts/backup-cloud.py",
+    "measure:p3": "node --experimental-strip-types scripts/measure-season.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
