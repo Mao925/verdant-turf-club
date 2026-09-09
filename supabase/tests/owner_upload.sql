@@ -69,6 +69,38 @@ begin
  perform pg_temp.check_ok(failed,'direct staging read denied');
 end;
 $$;
+do $$
+declare sid uuid:='30000000-0000-4000-8000-000000000003'; cid uuid; old jsonb; core jsonb; rev bigint; failed boolean;
+ a jsonb:=jsonb_build_array(jsonb_build_object('id','escaped-history','kind','event','text',E'母と仔 [a, b] "引用"\n改行\\末尾','nested',jsonb_build_array(null,true,1.25)));
+ b jsonb:='[{"id":"second-history","kind":"event","text":"[,]"}]';
+begin
+ old=public.load_owner_save();core=old#>'{state,core}';rev=(old->>'revision')::bigint;cid=gen_random_uuid();
+ perform public.commit_owner_save(sid,cid,rev,core,a||b,false);
+ perform public.begin_owner_upload(sid,cid,rev,core,false,4);
+ perform public.append_owner_upload(cid,3,b);perform public.append_owner_upload(cid,0,'[]');
+ perform public.append_owner_upload(cid,2,'[]');perform public.append_owner_upload(cid,1,a);
+ perform public.finish_owner_upload(cid);
+ perform pg_temp.check_ok((public.load_owner_save()->>'revision')::bigint=rev+1,'direct to staged replay hash matches with empty chunks, escapes, Unicode and nested values');
+ rev=rev+1;cid=gen_random_uuid();
+ perform public.begin_owner_upload(sid,cid,rev,core,false,2);
+ perform public.append_owner_upload(cid,0,a);perform public.append_owner_upload(cid,1,b);
+ perform public.finish_owner_upload(cid);
+ perform public.commit_owner_save(sid,cid,rev,core,a||b,false);
+ perform pg_temp.check_ok((public.load_owner_save()->>'revision')::bigint=rev+1,'staged to direct replay hash matches');
+ old=public.load_owner_save();rev=rev+1;cid=gen_random_uuid();
+ perform public.begin_owner_upload(sid,cid,rev,core,true,2);
+ perform public.append_owner_upload(cid,0,a);perform public.append_owner_upload(cid,1,a);
+ failed=false;begin perform public.finish_owner_upload(cid);exception when sqlstate '22023' then failed=true;end;
+ perform pg_temp.check_ok(failed and public.load_owner_save()=old,'duplicate IDs across chunks rejected atomically');
+ cid=gen_random_uuid();perform public.begin_owner_upload(sid,cid,rev,core,true,2);
+ perform public.append_owner_upload(cid,0,a);perform public.append_owner_upload(cid,1,'[{"id":"bad-later","kind":"unknown"}]');
+ failed=false;begin perform public.finish_owner_upload(cid);exception when sqlstate '22023' then failed=true;end;
+ perform pg_temp.check_ok(failed and public.load_owner_save()=old,'invalid later chunk rejected before any checkpoint or write');
+ cid=gen_random_uuid();perform public.begin_owner_upload(sid,cid,rev,core||'{"rulesetVersion":"unknown"}'::jsonb,true,1);
+ perform public.append_owner_upload(cid,0,a);
+ failed=false;begin perform public.finish_owner_upload(cid);exception when sqlstate '22023' then failed=true;end;
+ perform pg_temp.check_ok(failed and public.load_owner_save()=old,'unsupported staged core rejected atomically');
+end $$;
 select set_config('request.jwt.claim.sub','20000000-0000-4000-8000-000000000002',true);
 do $$declare failed boolean=false;begin
  begin perform public.begin_owner_upload('30000000-0000-4000-8000-000000000003',gen_random_uuid(),0,'{"saveId":"30000000-0000-4000-8000-000000000003"}',true,1);exception when insufficient_privilege then failed=true;end;
