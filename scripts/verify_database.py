@@ -18,7 +18,7 @@ try:
 create table auth.users(id uuid primary key);grant usage on schema auth,public to anon,authenticated;
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
 grant execute on function auth.uid() to anon,authenticated;"""
-    for label,script in [('bootstrap',bootstrap),('migrations','\n'.join(p.read_text() for p in sorted((root/'supabase/migrations').glob('*.sql')))),('permissions, atomicity, idempotency, checkpoints',(root/'supabase/tests/owner_save.sql').read_text())]:
+    for label,script in [('bootstrap',bootstrap),('migrations','\n'.join(p.read_text() for p in sorted((root/'supabase/migrations').glob('*.sql')))),('permissions, atomicity, idempotency, checkpoints',(root/'supabase/tests/owner_save.sql').read_text()),('staged uploads, interruption, replay, CAS and isolation',(root/'supabase/tests/owner_upload.sql').read_text())]:
         p=sql(script)
         if p.returncode:raise RuntimeError(label+': '+p.stderr)
         print('PASS:',label,flush=True)

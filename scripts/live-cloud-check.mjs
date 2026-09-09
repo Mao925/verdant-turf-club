@@ -25,5 +25,15 @@ try{
  if(result.status!==0)throw new Error('Live browser validation failed');
  console.log('Real service/browser checks passed.');
 }finally{
- if(uid){const {error}=await admin.auth.admin.deleteUser(uid);if(error)throw new Error('Test-account cleanup failed');console.log('Temporary account and its save removed.');}
+ if(uid){
+  let error;
+  for(let attempt=0;attempt<3;attempt++){
+   ({error}=await admin.auth.admin.deleteUser(uid));
+   if(!error||error.status===404){error=null;break;}
+   console.log('Temporary account cleanup retry:',attempt+1,'status:',error.status,'code:',error.code);
+   if(attempt<2)await new Promise(resolve=>setTimeout(resolve,3000));
+  }
+  if(error)throw new Error('Test-account cleanup failed; targeted cleanup is required');
+  console.log('Temporary account and its save removed.');
+ }
 }

@@ -2,6 +2,8 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { ConflictError, type Cloud } from "../application/session";
 import { validateWorld, type Envelope } from "../domain/world";
 import type { Pending } from "./journal";
+import { uploadChunks } from "./upload";
+export { uploadChunks } from "./upload";
 export function configuredClient(): SupabaseClient | null {
   const url = import.meta.env.VITE_SUPABASE_URL,
     key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -69,24 +71,46 @@ export class SupabaseCloud implements Cloud {
     return envelope(data);
   }
   async commit(p: Pending) {
-    const { data, error } = await this.client
-      .rpc("commit_owner_save", {
+    const send = async (name: string, args: Record<string, unknown>) => {
+      const response = await this.client.rpc(name, args).retry(false);
+      if (response.error) {
+        if (["40001", "PT409"].includes(response.error.code))
+          throw new ConflictError(
+            "別の端末で記録が更新されています。手元の結果を保護してクラウドの最新状態を確認してください。",
+          );
+        throw new Error(
+          "保存を確認できませんでした。接続・ログイン・保存容量を確認し、同じ結果を再送してください。",
+        );
+      }
+      return response.data;
+    };
+    const chunks = uploadChunks(p.patch.upserts);
+    let data;
+    if (chunks) {
+      await send("begin_owner_upload", {
+        p_save_id: p.state.core.saveId,
+        p_command_id: p.id,
+        p_expected_revision: p.expectedRevision,
+        p_core: p.patch.core,
+        p_replace: p.patch.replace,
+        p_chunk_count: chunks.length,
+      });
+      for (let part = 0; part < chunks.length; part++)
+        await send("append_owner_upload", {
+          p_command_id: p.id,
+          p_part: part,
+          p_entities: chunks[part],
+        });
+      data = await send("finish_owner_upload", { p_command_id: p.id });
+    } else {
+      data = await send("commit_owner_save", {
         p_save_id: p.state.core.saveId,
         p_command_id: p.id,
         p_expected_revision: p.expectedRevision,
         p_core: p.patch.core,
         p_upserts: p.patch.upserts,
         p_replace: p.patch.replace,
-      })
-      .retry(false);
-    if (error) {
-      if (error.code === "40001" || error.code === "PT409")
-        throw new ConflictError(
-          "別の端末で記録が更新されています。手元の結果を保護してクラウドの最新状態を確認してください。",
-        );
-      throw new Error(
-        "保存を確認できませんでした。接続・ログイン・保存容量を確認し、同じ結果を再送してください。",
-      );
+      });
     }
     const revision = data?.revision;
     if (!Number.isSafeInteger(revision) || revision < p.expectedRevision + 1)

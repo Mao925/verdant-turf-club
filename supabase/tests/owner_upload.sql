@@ -1,0 +1,75 @@
+begin;
+create function pg_temp.check_ok(ok boolean,message text) returns void language plpgsql as $$ begin if ok is distinct from true then raise exception '%',message;end if; end $$;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);
+do $$
+declare sid uuid:='30000000-0000-4000-8000-000000000003'; cid uuid:=gen_random_uuid(); core jsonb; rev bigint; old jsonb; failed boolean; result jsonb;
+ part0 jsonb:='[{"id":"upload-horse","kind":"horse","name":"母と仔"}]';
+ part1 jsonb:='[{"id":"upload-scene","kind":"scene"}]';
+begin
+ old=public.load_owner_save(); core=old#>'{state,core}'; rev=(old->>'revision')::bigint;
+ perform public.begin_owner_upload(sid,cid,rev,core,true,2);
+ perform public.append_owner_upload(cid,1,part1);
+ perform public.append_owner_upload(cid,1,part1);
+ perform pg_temp.check_ok(public.load_owner_save()=old,'partial upload never changes the save');
+ failed=false;begin perform public.finish_owner_upload(cid);exception when sqlstate '22023' then failed=true;end;
+ perform pg_temp.check_ok(failed,'incomplete upload rejected');
+ failed=false;begin perform public.append_owner_upload(cid,1,part0);exception when sqlstate '22023' then failed=true;end;
+ perform pg_temp.check_ok(failed,'changed chunk rejected');
+ failed=false;begin perform public.begin_owner_upload(sid,cid,rev,core,true,3);exception when sqlstate '22023' then failed=true;end;
+ perform pg_temp.check_ok(failed,'changed metadata rejected');
+ perform public.append_owner_upload(cid,0,part0);
+ result=public.finish_owner_upload(cid);
+ perform pg_temp.check_ok((result->>'revision')::bigint=rev+1,'complete upload commits once');
+ perform pg_temp.check_ok((select state from public.owner_checkpoints where revision=rev)=old->'state','staged restore preserves previous checkpoint');
+ perform pg_temp.check_ok((select count(*) from public.owner_entities)=2,'restore replaces the entire entity set');
+ -- Simulate a lost final response: re-upload with exactly the same command and bytes.
+ perform public.begin_owner_upload(sid,cid,rev,core,true,2);
+ perform public.append_owner_upload(cid,0,part0);
+ perform public.append_owner_upload(cid,1,part1);
+ result=public.finish_owner_upload(cid);
+ perform pg_temp.check_ok((result->>'revision')::bigint=rev+1,'lost final response remains idempotent');
+ perform public.begin_owner_upload(sid,cid,rev,core,true,2);
+ perform public.append_owner_upload(cid,0,part0||'[{"id":"changed","kind":"horse"}]'::jsonb);
+ perform public.append_owner_upload(cid,1,part1);
+ failed=false;begin perform public.finish_owner_upload(cid);exception when sqlstate '22023' then failed=true;end;
+ perform pg_temp.check_ok(failed,'reusing committed upload id with different entities rejected');
+ old=public.load_owner_save();rev=(old->>'revision')::bigint;cid=gen_random_uuid();
+ perform public.begin_owner_upload(sid,cid,rev,core,true,1);
+ perform public.append_owner_upload(cid,0,'[{"id":"valid","kind":"horse"},{"id":"bad","kind":"unsupported"}]');
+ failed=false;begin perform public.finish_owner_upload(cid);exception when sqlstate '22023' then failed=true;end;
+ perform pg_temp.check_ok(failed and public.load_owner_save()=old,'invalid staged replacement is atomic');
+ cid=gen_random_uuid();perform public.begin_owner_upload(sid,cid,rev,core,true,1);
+ perform public.append_owner_upload(cid,0,part0);
+ perform public.commit_owner_save(sid,gen_random_uuid(),rev,core,'[]',false);
+ failed=false;begin perform public.finish_owner_upload(cid);exception when sqlstate 'PT409' then failed=true;end;
+ perform pg_temp.check_ok(failed,'concurrent ordinary save wins CAS over stale upload');
+ failed=false;begin perform public.begin_owner_upload(sid,gen_random_uuid(),rev,core,true,33);exception when sqlstate '22023' then failed=true;end;
+ perform pg_temp.check_ok(failed,'upload count bounded');
+ failed=false;begin perform public.append_owner_upload(cid,0,jsonb_build_array(jsonb_build_object('padding',repeat('x',2000001))));exception when sqlstate '22023' then failed=true;end;
+ perform pg_temp.check_ok(failed,'individual chunk size bounded');
+ -- A pending legacy direct commit can be retried through staging after an app update.
+ old=public.load_owner_save();
+ perform public.begin_owner_upload(sid,'40000000-0000-4000-8000-000000000004',0,core||'{"engineVersion":"owner-p1","rulesetVersion":"foundation-2026"}'::jsonb,false,1);
+ perform public.append_owner_upload('40000000-0000-4000-8000-000000000004',0,'[{"id":"horse-1","kind":"horse","name":"before"}]');
+ perform public.finish_owner_upload('40000000-0000-4000-8000-000000000004');
+ perform pg_temp.check_ok(public.load_owner_save()=old,'legacy direct command replay through staging preserves the current save');
+ failed=false;begin perform * from public.owner_uploads;exception when insufficient_privilege then failed=true;end;
+ perform pg_temp.check_ok(failed,'direct staging read denied');
+end;
+$$;
+select set_config('request.jwt.claim.sub','20000000-0000-4000-8000-000000000002',true);
+do $$declare failed boolean=false;begin
+ begin perform public.begin_owner_upload('30000000-0000-4000-8000-000000000003',gen_random_uuid(),0,'{"saveId":"30000000-0000-4000-8000-000000000003"}',true,1);exception when insufficient_privilege then failed=true;end;
+ perform pg_temp.check_ok(failed,'other owner cannot stage into this save');
+ failed=false;begin perform public.finish_owner_upload(gen_random_uuid());exception when sqlstate 'PT409' then failed=true;end;
+ perform pg_temp.check_ok(failed,'other owner cannot finalize an upload');
+end $$;
+set local role anon;
+do $$declare failed boolean=false;begin
+ begin perform public.finish_owner_upload(gen_random_uuid());exception when insufficient_privilege then failed=true;end;
+ perform pg_temp.check_ok(failed,'anonymous staging RPC denied');
+end $$;
+reset role;
+delete from public.owner_uploads;
+commit;

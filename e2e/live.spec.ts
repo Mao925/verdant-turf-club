@@ -1,4 +1,6 @@
 import { beginEpisode, DIAGNOSES } from "../src/domain/health";
+import { uploadChunks } from "../src/persistence/upload";
+import { diff } from "../src/domain/world";
 import { cycles } from "../src/domain/breeding-support";
 import { horses } from "../src/domain/world";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -345,31 +347,117 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
     let revision = current.revision;
     const writes: number[] = [];
     for (let i = 0; i < 4; i++) {
+      if (i === 3 && process.env.P5_LIVE_WORLD) {
+        // Exercise the actual 45-second browser transport and protected restore, too.
+        await second.reload();
+        await saved(second);
+        await second
+          .getByRole("button", { name: "記録室", exact: true })
+          .click();
+        let lostFinalRevision: number | undefined;
+        const finishURL = url + "/rest/v1/rpc/finish_owner_upload";
+        await secondContext.route(finishURL, async (route) => {
+          if (lostFinalRevision !== undefined) {
+            await route.continue();
+            return;
+          }
+          const response = await route.fetch({ timeout: 45000 });
+          if (!response.ok()) {
+            await route.fulfill({ response });
+            return;
+          }
+          lostFinalRevision = (await response.json()).revision;
+          await route.abort("connectionreset");
+        });
+        const uiStart = performance.now();
+        await second.locator("input[type=file]").setInputFiles({
+          name: "five-year-restore.json",
+          mimeType: "application/json",
+          buffer: Buffer.from(backup(year, revision)),
+        });
+        await second
+          .getByRole("button", {
+            name: "現在の記録を保管して復旧する",
+            exact: true,
+          })
+          .click();
+        await expect(
+          second.getByRole("button", { name: "同じ処理を再確認" }),
+        ).toBeVisible({ timeout: 60000 });
+        expect(lostFinalRevision).toBe(revision + 1);
+        await second.reload();
+        await saved(second);
+        await secondContext.unroute(finishURL);
+        writes.push(performance.now() - uiStart);
+        const head = await load();
+        expect(head.revision).toBe(revision + 1);
+        expect(head.state).toEqual(year);
+        revision = head.revision;
+        console.log("Five-year browser file restore:", writes.at(-1));
+        continue;
+      }
       const start = performance.now();
-      const response = await fetch(url + "/rest/v1/rpc/commit_owner_save", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
+      const commandId = crypto.randomUUID(),
+        patch = diff(null, year, true);
+      const call = async (endpoint: string, args: Record<string, unknown>) => {
+        const t = performance.now();
+        const r = await fetch(url + "/rest/v1/rpc/" + endpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(args),
+          signal: AbortSignal.timeout(45000),
+        });
+        if (!r.ok || endpoint === "finish_owner_upload")
+          console.log(
+            "Large save HTTP:",
+            endpoint,
+            r.status,
+            r.headers.get("content-type"),
+            "elapsed",
+            performance.now() - t,
+          );
+        expect(r.headers.get("content-type")).toContain("application/json");
+        const data = await r.json();
+        expect(r.ok, `RPC ${endpoint}: ${r.status} ${data.code ?? ""}`).toBe(
+          true,
+        );
+        return data;
+      };
+      const parts = uploadChunks(patch.upserts);
+      let result;
+      if (parts) {
+        await call("begin_owner_upload", {
           p_save_id: year.core.saveId,
-          p_command_id: crypto.randomUUID(),
+          p_command_id: commandId,
           p_expected_revision: revision,
           p_core: year.core,
-          p_upserts: Object.values(year.entities),
           p_replace: true,
-        }),
-      });
-      const result = await response.json();
+          p_chunk_count: parts.length,
+        });
+        for (let part = 0; part < parts.length; part++)
+          await call("append_owner_upload", {
+            p_command_id: commandId,
+            p_part: part,
+            p_entities: parts[part],
+          });
+        result = await call("finish_owner_upload", { p_command_id: commandId });
+      } else
+        result = await call("commit_owner_save", {
+          p_save_id: year.core.saveId,
+          p_command_id: commandId,
+          p_expected_revision: revision,
+          p_core: year.core,
+          p_upserts: patch.upserts,
+          p_replace: true,
+        });
+      expect(result.revision).toBe(revision + 1);
+      revision = result.revision;
       console.log(
-        "Year restore RPC:",
+        "Year restore via application persistence:",
         i + 1,
-        response.status,
-        result.code ?? "OK",
         "elapsed",
         performance.now() - start,
       );
-      expect(response.ok).toBe(true);
-      expect(result.revision).toBe(revision + 1);
-      revision = result.revision;
       writes.push(performance.now() - start);
     }
     const start = performance.now();
@@ -390,6 +478,9 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
       kind: `real Supabase test account, ${year.core.engineVersion} synthetic long world and explicit restores; HTTP latency on this Mac`,
       saveBytes: Buffer.byteLength(JSON.stringify(year)),
       restoreWriteMs: writes,
+      fourthRestore: process.env.P5_LIVE_WORLD
+        ? "actual browser file UI, including lost final response, reload and idempotent staged resend"
+        : "direct RPC",
       loadMs,
       browserReloadMs: reloadMs,
       entities: Object.keys(year.entities).length,
