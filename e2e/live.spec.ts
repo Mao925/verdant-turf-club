@@ -245,8 +245,16 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
           p_replace: true,
         }),
       });
-      expect(response.ok).toBe(true);
       const result = await response.json();
+      console.log(
+        "Year restore RPC:",
+        i + 1,
+        response.status,
+        result.code ?? "OK",
+        "elapsed",
+        performance.now() - start,
+      );
+      expect(response.ok).toBe(true);
       expect(result.revision).toBe(revision + 1);
       revision = result.revision;
       writes.push(performance.now() - start);
