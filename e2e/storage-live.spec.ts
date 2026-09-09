@@ -23,7 +23,9 @@ test("large real staged restores preserve four complete versions", async () => {
   const rows = [];
   const call = async (endpoint: string, args: Record<string, unknown>) => {
     const t = performance.now();
-    const r = await fetch(url + "/rest/v1/rpc/" + endpoint, {
+    const target = process.env.P5_PROFILE_STORAGE && endpoint === "finish_owner_upload"
+      ? "diagnose_owner_upload" : endpoint;
+    const r = await fetch(url + "/rest/v1/rpc/" + target, {
       method: "POST",
       headers,
       body: JSON.stringify(args),
@@ -40,6 +42,8 @@ test("large real staged restores preserve four complete versions", async () => {
       );
     expect(r.headers.get("content-type")).toContain("application/json");
     const data = JSON.parse(raw);
+    if (data.profile) console.log("Finalization profile:", JSON.stringify(data));
+    expect(data.diagnostic_error).toBeUndefined();
     expect(r.ok, `${endpoint}: ${r.status} ${data.code ?? ""}`).toBe(true);
     return data;
   };
