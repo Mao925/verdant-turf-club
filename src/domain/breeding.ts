@@ -711,12 +711,12 @@ export function applyBreeding(world: World, command: Command, id: string) {
   if (
     command.type === "care-plan" &&
     w.entities[command.episodeId]?.kind === "health" &&
-    activeCycle(
-      w,
-      w.entities[
+    (() => {
+      const h = w.entities[
         (w.entities[command.episodeId] as HealthEpisode).horseId
-      ] as Horse,
-    )
+      ] as Horse;
+      return activeCycle(w, h) || h.family?.growth?.stage === "foal";
+    })()
   ) {
     const e = w.entities[command.episodeId] as HealthEpisode,
       h = own(w, e.horseId);
@@ -725,7 +725,7 @@ export function applyBreeding(world: World, command: Command, id: string) {
         command.choice === "rehab" &&
         command.providerId === "forest" &&
         wording(command.reason),
-      "繁殖中は現在の牧場での療養方針を選び、母仔の診療を続けてください。",
+      "繁殖中・離乳前は現在の牧場での療養方針を選び、母仔の診療を続けてください。",
     );
     requireCash(w, DIAGNOSES[e.cause].cost);
     startRehab(w, e, "rehab", command.reason);
@@ -734,8 +734,10 @@ export function applyBreeding(world: World, command: Command, id: string) {
       h,
       `${id}:clinical`,
       "breeding",
-      [e.id, h.family!.cycleId!],
-      "現在の繁殖預託を継続しながら療養します。種付け前の健康条件と妊娠の経過は別に確認します。",
+      [e.id, h.id, ...(h.family!.cycleId ? [h.family!.cycleId] : [])],
+      h.family?.growth?.stage === "foal"
+        ? "現在の哺育契約と必要な哺育支援を継続しながら療養し、離乳までの経過を見守ります。"
+        : "現在の繁殖預託を継続しながら療養します。種付け前の健康条件と妊娠の経過は別に確認します。",
     );
   } else if (command.type === "market-age") {
     check(

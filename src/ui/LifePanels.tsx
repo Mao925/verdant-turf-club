@@ -126,7 +126,7 @@ function HorseLife({ world: w, ready, act, h }: Props & { h: Horse }) {
             <>
               <p>
                 療養先：白樺牧場。療養
-                月35万円（繁殖中は現在の繁殖預託を継続）、医療管理を伴う引退預託
+                月35万円（繁殖中・離乳前は現在の預託契約を継続）、医療管理を伴う引退預託
                 月18万円。移動費15万円。
                 {e.phase === "decision" &&
                   `今回の治療開始費 ${yen(DIAGNOSES[e.cause].cost)}。`}
@@ -150,7 +150,12 @@ function HorseLife({ world: w, ready, act, h }: Props & { h: Horse }) {
                   </button>
                 )}
                 <button
-                  disabled={blocked || !reason.trim() || !!activeCycle(w, h)}
+                  disabled={
+                    blocked ||
+                    !reason.trim() ||
+                    !!activeCycle(w, h) ||
+                    h.family?.growth?.stage === "foal"
+                  }
                   onClick={() => {
                     if (
                       window.confirm(

@@ -208,6 +208,43 @@ describe("P5 繁殖・育成・親子の記録", () => {
       ),
     ).toEqual(refund);
   });
+  it("離乳前の仔は安価な引退先へ移さず、療養中も哺育支援を継続する", () => {
+    let w = covered();
+    const b = normal(w);
+    b.outcome!.motherDies = true;
+    at(w, nextDate(b.matingDate!, 17));
+    at(w, b.dueDate!);
+    const foalId = b.foalId!;
+    at(w, nextDate((w.entities[foalId] as Horse).birthDate, 35));
+    expect(() =>
+      act(w, {
+        type: "move-horse",
+        horseId: foalId,
+        purpose: "retirement",
+        providerId: "haven",
+        reason: "移動を検討",
+      }),
+    ).toThrow("離乳前");
+    const e = beginEpisode(w, w.entities[foalId] as Horse, "colic", "illness");
+    e.outcome = "recover";
+    at(w, e.dueDate!);
+    w = act(w, {
+      type: "care-plan",
+      episodeId: e.id,
+      choice: "rehab",
+      providerId: "forest",
+      reason: "哺育と診療を同じ牧場へ託す",
+    });
+    expect(contracts(w).find((c) => c.horseId === foalId)).toMatchObject({
+      purpose: "rearing",
+      monthlyYen: 250000,
+    });
+    expect((w.entities[foalId] as Horse).family!.growth!.orphanSupport).toBe(
+      true,
+    );
+    expect((w.entities[e.id] as HealthEpisode).phase).toBe("rehab");
+    expect(() => validateWorld(w)).not.toThrow();
+  });
   it("妊娠中の診療は繁殖預託を維持して療養できる", () => {
     let w = covered();
     const b = normal(w);

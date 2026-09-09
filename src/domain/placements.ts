@@ -32,6 +32,10 @@ export function placementReasons(
   const reasons: string[] = [];
   if (activeCycle(w, h))
     reasons.push("繁殖の手続き・母仔の報告を先に終えてください。");
+  if (h.family?.growth?.stage === "foal")
+    reasons.push(
+      "離乳前の仔は哺育契約を続けてください。診療は現在の牧場へ相談できます。",
+    );
   if (purpose === "training" && young(h))
     reasons.push("育成の完了報告を待ってから入厩してください。");
   if (

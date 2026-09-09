@@ -3,7 +3,7 @@ create function pg_temp.check_ok(ok boolean,message text) returns void language 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);
 do $$
-declare sid uuid:='30000000-0000-4000-8000-000000000003'; cid uuid:=gen_random_uuid(); core jsonb; rev bigint; old jsonb; failed boolean; result jsonb;
+declare sid uuid:='30000000-0000-4000-8000-000000000003'; cid uuid:=gen_random_uuid(); core jsonb; rev bigint; old jsonb; failed boolean; result jsonb; unchanged_tid tid;
  part0 jsonb:='[{"id":"upload-horse","kind":"horse","name":"母と仔"}]';
  part1 jsonb:='[{"id":"upload-scene","kind":"scene"}]';
 begin
@@ -54,6 +54,17 @@ begin
  perform public.append_owner_upload('40000000-0000-4000-8000-000000000004',0,'[{"id":"horse-1","kind":"horse","name":"before"}]');
  perform public.finish_owner_upload('40000000-0000-4000-8000-000000000004');
  perform pg_temp.check_ok(public.load_owner_save()=old,'legacy direct command replay through staging preserves the current save');
+ rev=(public.load_owner_save()->>'revision')::bigint;
+ perform public.commit_owner_save(sid,gen_random_uuid(),rev,core,'[{"id":"remove-me","kind":"event"}]',false);
+ old=public.load_owner_save();rev=(old->>'revision')::bigint;
+ select ctid into unchanged_tid from public.owner_entities where save_id=sid and id='upload-scene';
+ cid=gen_random_uuid();perform public.begin_owner_upload(sid,cid,rev,core,true,1);
+ perform public.append_owner_upload(cid,0,'[{"id":"upload-horse","kind":"horse","name":"next"},{"id":"upload-scene","kind":"scene"},{"id":"new-horse","kind":"horse"}]');
+ perform public.finish_owner_upload(cid);
+ perform pg_temp.check_ok((select count(*) from public.owner_entities)=3 and not exists(select 1 from public.owner_entities where id='remove-me'),'replacement deletes omitted IDs and adds new IDs');
+ perform pg_temp.check_ok((select body->>'name' from public.owner_entities where id='upload-horse')='next','replacement updates changed content');
+ perform pg_temp.check_ok((select ctid from public.owner_entities where id='upload-scene')=unchanged_tid,'unchanged entity is retained without a rewrite');
+ perform pg_temp.check_ok((select state from public.owner_checkpoints where revision=rev)=old->'state','optimized snapshot preserves exact old state');
  failed=false;begin perform * from public.owner_uploads;exception when insufficient_privilege then failed=true;end;
  perform pg_temp.check_ok(failed,'direct staging read denied');
 end;
