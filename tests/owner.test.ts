@@ -166,6 +166,32 @@ describe("permanent horses, dates and finance", () => {
     }
     expect(() => parseBackup('{"format":"bad"}')).toThrow();
   });
+  it("can import an exported long history that pretty printing would put over the size limit", () => {
+    const w = createWorld(ids());
+    for (let i = 0; i < 30000; i++) {
+      const id = `long-history:${i}`;
+      w.entities[id] = {
+        kind: "event",
+        id,
+        date: w.core.date,
+        text: "x".repeat(560),
+      };
+    }
+    const encoded = backup(w, 256);
+    expect(new TextEncoder().encode(encoded).length).toBeLessThan(
+      20 * 1024 * 1024,
+    );
+    expect(
+      new TextEncoder().encode(JSON.stringify(JSON.parse(encoded), null, 2))
+        .length,
+    ).toBeGreaterThan(20 * 1024 * 1024);
+    expect(parseBackup(encoded)).toEqual(w);
+    // Existing indented files remain compatible when within the import limit.
+    const old = createWorld(ids());
+    expect(
+      parseBackup(JSON.stringify(JSON.parse(backup(old, 1)), null, 2)),
+    ).toEqual(old);
+  });
   it("sends changes rather than duplicating every old ledger record", () => {
     const w = createWorld(ids());
     const next = applyCommand(

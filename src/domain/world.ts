@@ -535,15 +535,12 @@ export function parseBackup(text: string): World {
   return data.state;
 }
 export function backup(state: World, revision: number | null, pending = false) {
-  return JSON.stringify(
-    {
-      format: "verdant-owner-backup-v1",
-      exportedAt: new Date().toISOString(),
-      revision,
-      pending,
-      state,
-    },
-    null,
-    2,
-  );
+  // Pretty printing pushed the five-year save beyond the import size limit.
+  return JSON.stringify({
+    format: "verdant-owner-backup-v1",
+    exportedAt: new Date().toISOString(),
+    revision,
+    pending,
+    state,
+  });
 }

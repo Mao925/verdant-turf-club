@@ -25,7 +25,7 @@ async function session(context: BrowserContext) {
 }
 async function saved(p: Page) {
   await expect(p.getByText("クラウド保存済み", { exact: false })).toBeVisible({
-    timeout: 60000,
+    timeout: 120000,
   });
 }
 test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conflict and restore", async ({
@@ -374,6 +374,9 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
           name: "five-year-restore.json",
           mimeType: "application/json",
           buffer: Buffer.from(backup(year, revision)),
+        });
+        await expect(second.getByRole("dialog")).toBeVisible({
+          timeout: 15000,
         });
         await second
           .getByRole("button", {

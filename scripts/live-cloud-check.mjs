@@ -21,7 +21,7 @@ try{
  const verified=await client.auth.verifyOtp({token_hash:generated.data.properties.hashed_token,type:'magiclink'});
  if(verified.error||!verified.data.session)throw new Error('Could not establish isolated test session');
  console.log('Temporary real Supabase Auth session established (test email identity, not Google).');
- const result=spawnSync('npx',['playwright','test',process.env.P5_STORAGE_ONLY?'e2e/storage-live.spec.ts':'e2e/live.spec.ts'],{stdio:'inherit',env:{...process.env,P2_LIVE_URL:url,P2_LIVE_KEY:process.env.VITE_SUPABASE_PUBLISHABLE_KEY,P2_LIVE_SESSION:JSON.stringify(verified.data.session)}});
+ const result=spawnSync('npx',['playwright','test',process.env.P5_STORAGE_ONLY?'e2e/storage-live.spec.ts':'e2e/live.spec.ts','--output=artifacts/p5-live-results'],{stdio:'inherit',env:{...process.env,P2_LIVE_URL:url,P2_LIVE_KEY:process.env.VITE_SUPABASE_PUBLISHABLE_KEY,P2_LIVE_SESSION:JSON.stringify(verified.data.session)}});
  if(result.status!==0)throw new Error('Live browser validation failed');
  console.log('Real service/browser checks passed.');
 }finally{
