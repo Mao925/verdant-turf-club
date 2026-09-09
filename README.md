@@ -61,13 +61,13 @@ Three.jsでコード生成した馬・騎手・競馬場を再利用する。既
 
 「愛馬と予定」で馬を選ぶと相談・路線・目標が切り替わる。「もう一頭を探す」で追加取得でき、各厩舎6頭・全体12頭まで。未決の相談・未精算結果を全頭分処理してから暦を進める。同一競走の複数愛馬はまとめて精算し、観戦中の追跡馬を変更できる。番組表は月・場・路線・クラスで絞り、選出条件を確認する。有馬記念・ダービー等も条件を満たせば登録できる。
 
-現在の番組は2099年まで。一般競走は5場を巡回する架空編成で、夏季の実際の開催分布・全JRA競走を再現しない。2歳長距離志向馬は芝2,000mから始める。初出走15日・既走10日の在厩とゲートを確認し、出走間隔14日、締切7日前・選出3日前、輸送費15万円、参加手当50万円などはゲーム設定。死亡・引退・繁殖は後続段階。
+現在の番組は2099年まで。一般競走は5場を巡回する架空編成で、夏季の実際の開催分布・全JRA競走を再現しない。2歳長距離志向馬は芝2,000mから始める。初出走15日・既走10日の在厩とゲートを確認し、出走間隔14日、締切7日前・選出3日前、輸送費15万円、参加手当50万円などはゲーム設定。死亡・引退はP4で追加。繁殖はP5で実装する。
 
-Vercelの既存プロジェクト `verdant-turf-club` を使う。公開環境変数は `VITE_SUPABASE_URL` と `VITE_SUPABASE_PUBLISHABLE_KEY` のみ。`.vercelignore` で環境・DB接続キャッシュ・運用スクリプト・検証生成物を除外。`npx vercel deploy --prod --skip-domain` で候補を作り、検証後 `npx vercel promote <deployment-url>` で固定URLへ反映する。SupabaseのSite URL/許可URLは固定試作用URLと開発用URLを維持し、Googleのcallbackは同じSupabaseのまま。
+Vercelの既存プロジェクト `verdant-turf-club` を使う。公開環境変数は `VITE_SUPABASE_URL` と `VITE_SUPABASE_PUBLISHABLE_KEY` のみ。`.vercelignore` で環境・DB接続キャッシュ・運用スクリプト・検証生成物を除外。`npx --yes vercel@59.12.0 deploy --prod --skip-domain` で候補を作り、検証後 `npx --yes vercel@59.12.0 promote <deployment-url>` で固定URLへ反映する。SupabaseのSite URL/許可URLは固定試作用URLと開発用URLを維持し、Googleのcallbackは同じSupabaseのまま。
 
 ## 実サービス検証と運用の入口
 
-- `npm test`：P1・P2・P3のドメインと保存制御、旧3D/計算の回帰。
+- `npm test`：P1〜P4のドメインと保存制御、旧3D/計算の回帰。
 - `npm run test:e2e`：Googleへの認証開始パラメータ、PC・390pxの全判断、モックAPIで通信断・応答消失・競合・復旧・P1移行。実サービス用1件は既定でスキップ。
 - `node --env-file=.env.local scripts/live-cloud-check.mjs`（公開URLを検証する場合は環境変数 `P2_BASE_URL=https://verdant-turf-club.vercel.app` を指定）：実Supabaseで一時ユーザーを作成し、発行されたテストセッションで実RPC・画面の取得/競走/通信断/応答消失/競合/復旧・他人の行が見えないことを検証。メールを送信しない。終了時に一時アカウントとそのセーブを削除する。これは実Google認証とは区別する。トレース・動画・画面の自動保存は無効。
 - `npm run test:db`：TCPで起動完了を確認した隔離PostgreSQLに全マイグレーションを適用し、権限・原子性・二重送信・同時更新を検証。
