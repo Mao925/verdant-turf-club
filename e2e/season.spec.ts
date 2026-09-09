@@ -60,11 +60,11 @@ test("P4: P2 migration, second purchase, individual plans and combined finances 
   await routeService(context, db);
   await page.goto("/");
   await page
-    .getByRole("button", { name: "愛馬の生涯へ引き継ぐ", exact: true })
+    .getByRole("button", { name: "親子の物語へ引き継ぐ", exact: true })
     .click();
   await saved(page);
   expect(cash(db.head.state)).toBe(before);
-  expect(db.head.state.core.engineVersion).toBe("owner-p4");
+  expect(db.head.state.core.engineVersion).toBe("owner-p5");
   await page
     .getByRole("button", { name: "もう一頭を探す", exact: true })
     .click();

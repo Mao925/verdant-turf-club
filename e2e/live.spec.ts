@@ -1,4 +1,5 @@
 import { beginEpisode, DIAGNOSES } from "../src/domain/health";
+import { cycles } from "../src/domain/breeding-support";
 import { horses } from "../src/domain/world";
 import { readFileSync, writeFileSync } from "node:fs";
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
@@ -22,13 +23,13 @@ async function session(context: BrowserContext) {
 }
 async function saved(p: Page) {
   await expect(p.getByText("クラウド保存済み", { exact: false })).toBeVisible({
-    timeout: 30000,
+    timeout: 60000,
   });
 }
 test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conflict and restore", async ({
   browser,
 }) => {
-  test.setTimeout(360000);
+  test.setTimeout(600000);
   const parsed = JSON.parse(process.env.P2_LIVE_SESSION!);
   const headers = {
     apikey: process.env.P2_LIVE_KEY!,
@@ -269,7 +270,73 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
   console.log(
     "P4 clinical care, transfer, person memory and reload verified in real RPC.",
   );
-  const longWorld = process.env.P4_LIVE_WORLD ?? process.env.P3_LIVE_WORLD;
+  if (process.env.P5_PREPARED_WORLD) {
+    const prepared = JSON.parse(
+      readFileSync(process.env.P5_PREPARED_WORLD, "utf8"),
+    );
+    const current = await load();
+    prepared.core.saveId = current.state.core.saveId;
+    validateWorld(prepared);
+    await second.getByRole("button", { name: "記録室", exact: true }).click();
+    await second.locator("input[type=file]").setInputFiles({
+      name: "breeding-command-progress.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(backup(prepared, current.revision)),
+    });
+    await second
+      .getByRole("button", {
+        name: "現在の記録を保管して復旧する",
+        exact: true,
+      })
+      .click();
+    await saved(second);
+    await second
+      .getByRole("button", { name: "愛馬と予定", exact: true })
+      .click();
+    await second
+      .getByRole("button", {
+        name: "この配合の受入条件を照会する",
+        exact: true,
+      })
+      .click();
+    await saved(second);
+    await second
+      .getByRole("button", { name: "1週間進める", exact: true })
+      .click();
+    await saved(second);
+    await second
+      .getByRole("button", { name: "この条件で種付けを予約する", exact: true })
+      .click();
+    await saved(second);
+    for (let i = 0; i < 8; i++) {
+      if (cycles((await load()).state).some((b) => b.outcome)) break;
+      await second
+        .getByRole("button", { name: "1週間進める", exact: true })
+        .click();
+      await saved(second);
+    }
+    const cycle = cycles((await load()).state).find((b) => b.outcome)!;
+    expect(cycle).toBeTruthy();
+    await second.reload();
+    await saved(second);
+    expect(cycles((await load()).state).find((b) => b.id === cycle.id)).toEqual(
+      cycle,
+    );
+    await expect(
+      second.getByRole("button", { name: "母仔の報告を受け取る", exact: true }),
+    ).toBeVisible();
+    await second
+      .getByRole("button", { name: "母仔の報告を受け取る", exact: true })
+      .click();
+    await saved(second);
+    console.log(
+      "P5 actual UI/RPC: previously raced mare, breeding inquiry, offered terms, reservation, cover report and fixed outcome after reload verified.",
+    );
+  }
+  const longWorld =
+    process.env.P5_LIVE_WORLD ??
+    process.env.P4_LIVE_WORLD ??
+    process.env.P3_LIVE_WORLD;
   if (longWorld) {
     const year = JSON.parse(readFileSync(longWorld, "utf8"));
     validateWorld(year);
@@ -316,7 +383,9 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
     await second
       .getByRole("button", { name: "愛馬と予定", exact: true })
       .click();
-    await expect(second.locator(".horse-roster button")).toHaveCount(4);
+    await expect(second.locator(".horse-roster button")).toHaveCount(
+      horses(year).length,
+    );
     const proof = {
       kind: `real Supabase test account, ${year.core.engineVersion} synthetic long world and explicit restores; HTTP latency on this Mac`,
       saveBytes: Buffer.byteLength(JSON.stringify(year)),
@@ -326,9 +395,11 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
       entities: Object.keys(year.entities).length,
     };
     writeFileSync(
-      process.env.P4_LIVE_WORLD
-        ? "artifacts/p4-live-three-year.json"
-        : "artifacts/p3-live-year.json",
+      process.env.P5_LIVE_WORLD
+        ? "artifacts/p5-live-five-year.json"
+        : process.env.P4_LIVE_WORLD
+          ? "artifacts/p4-live-three-year.json"
+          : "artifacts/p3-live-year.json",
       JSON.stringify(proof, null, 2),
     );
     console.log(JSON.stringify(proof));

@@ -444,9 +444,14 @@ export function validateLifeEntity(
   if (e.kind === "health") {
     check(
       Object.hasOwn(DIAGNOSES, e.cause) &&
-        ["race", "training", "pasture", "illness", "checkup"].includes(
-          e.origin,
-        ) &&
+        [
+          "race",
+          "training",
+          "pasture",
+          "illness",
+          "checkup",
+          "breeding",
+        ].includes(e.origin) &&
         [
           "assessment",
           "decision",
@@ -454,6 +459,7 @@ export function validateLifeEntity(
           "cleared",
           "limited",
           "dead",
+          "superseded",
         ].includes(e.phase) &&
         ["recover", "limited", "death"].includes(e.outcome) &&
         text(e.diagnosis, 1000) &&
@@ -469,7 +475,7 @@ export function validateLifeEntity(
         : e.dueDate === undefined,
       "診療の再評価日が不正です。",
     );
-    if (["cleared", "limited", "dead"].includes(e.phase))
+    if (["cleared", "limited", "dead", "superseded"].includes(e.phase))
       check(
         validDate(e.closedDate) &&
           e.closedDate >= e.date &&
@@ -504,7 +510,15 @@ export function validateLifeEntity(
       check(e.outcome === "limited", "復帰断念が診療と一致しません。");
   } else if (e.kind === "placement") {
     check(
-      ["rest", "rehab", "retirement", "training", "sale"].includes(e.purpose) &&
+      [
+        "rest",
+        "rehab",
+        "retirement",
+        "training",
+        "sale",
+        "breeding",
+        "rearing",
+      ].includes(e.purpose) &&
         [
           "searching",
           "offered",
@@ -556,6 +570,10 @@ export function validateLifeEntity(
           "annual",
           "sale",
           "payment",
+          "breeding",
+          "birth",
+          "growth",
+          "legacy",
         ].includes(e.trigger) &&
         Array.isArray(e.evidenceIds) &&
         e.evidenceIds.length <= 12 &&
@@ -731,9 +749,14 @@ export function validateLife(w: World) {
   for (const contract of contracts(w))
     check(
       contract.emergencyConsent === true &&
-        ["training", "rest", "rehab", "retirement"].includes(
-          contract.purpose!,
-        ) &&
+        [
+          "training",
+          "rest",
+          "rehab",
+          "retirement",
+          "breeding",
+          "rearing",
+        ].includes(contract.purpose!) &&
         contract.providerId,
       "P4預託の事前合意がありません。",
     );

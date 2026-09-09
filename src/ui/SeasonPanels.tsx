@@ -1,3 +1,4 @@
+import { reservedFoals } from "../domain/breeding-support";
 import { lifeLabel } from "./LifePanels";
 import { livingOwned } from "../domain/life-support";
 import { useMemo, useState } from "react";
@@ -49,7 +50,9 @@ export function PortfolioPanel({ world: w, ready, act }: Props) {
         </div>
         {c.stage === "active" && (
           <button
-            disabled={!ready || livingOwned(w).length >= 12}
+            disabled={
+              !ready || livingOwned(w).length + reservedFoals(w).length >= 12
+            }
             onClick={() => void act({ type: "open-market" })}
           >
             もう一頭を探す
@@ -104,7 +107,7 @@ export function PortfolioPanel({ world: w, ready, act }: Props) {
       {pending.length > 0 && (
         <p className="notice" role="status">
           全頭で未決の確認が{pending.length}
-          件あります。各愛馬の診療・売却条件・相談・結果を確認してから、暦を進めます。
+          件あります。各愛馬の診療・繁殖報告・売却条件・相談・結果を確認してから、暦を進めます。
         </p>
       )}
       {c.stage === "market" && (

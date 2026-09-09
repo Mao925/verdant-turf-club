@@ -1,3 +1,5 @@
+import { activeCycle, young } from "../domain/breeding-support";
+import { growthLabel } from "./BreedingPanels";
 import { useState } from "react";
 import { horses, type World, type Horse, type Command } from "../domain/world";
 import {
@@ -20,6 +22,10 @@ type Props = {
 const yen = (n: number) => n.toLocaleString("ja-JP") + "円";
 export function lifeLabel(w: World, h: Horse) {
   const e = activeEpisode(w, h);
+  if (!h.life?.deceased && activeCycle(w, h)?.report)
+    return "母仔の報告・返事待ち";
+  if (!h.life?.deceased && young(h))
+    return growthLabel(h.family!.growth!.stage);
   if (w.core.career?.life?.closure?.unplacedIds.includes(h.id))
     return "今後の飼養先・資金が未解決";
   if (w.core.career?.stage === "boarding" && w.core.career.horseId === h.id)
@@ -119,7 +125,8 @@ function HorseLife({ world: w, ready, act, h }: Props & { h: Horse }) {
           {["decision", "limited"].includes(e.phase) && !ended && (
             <>
               <p>
-                療養先：白樺牧場。療養 月35万円、医療管理を伴う引退預託
+                療養先：白樺牧場。療養
+                月35万円（繁殖中は現在の繁殖預託を継続）、医療管理を伴う引退預託
                 月18万円。移動費15万円。
                 {e.phase === "decision" &&
                   `今回の治療開始費 ${yen(DIAGNOSES[e.cause].cost)}。`}
@@ -143,7 +150,7 @@ function HorseLife({ world: w, ready, act, h }: Props & { h: Horse }) {
                   </button>
                 )}
                 <button
-                  disabled={blocked || !reason.trim()}
+                  disabled={blocked || !reason.trim() || !!activeCycle(w, h)}
                   onClick={() => {
                     if (
                       window.confirm(

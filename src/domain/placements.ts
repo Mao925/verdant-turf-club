@@ -1,3 +1,4 @@
+import { activeCycle, young, farmSpaces } from "./breeding-support.ts";
 import {
   cash,
   horses,
@@ -29,6 +30,16 @@ export function placementReasons(
   provider: string,
 ) {
   const reasons: string[] = [];
+  if (activeCycle(w, h))
+    reasons.push("繁殖の手続き・母仔の報告を先に終えてください。");
+  if (purpose === "training" && young(h))
+    reasons.push("育成の完了報告を待ってから入厩してください。");
+  if (
+    provider === "forest" &&
+    w.core.career?.breeding &&
+    farmSpaces(w, h.id) < 1
+  )
+    reasons.push("出生予約を含む牧場の受入枠が埋まっています。");
   if (h.life?.deceased) reasons.push("死亡した馬の新しい契約はできません。");
   if (h.life?.movementId) reasons.push("移動中の手続きがあります。");
   if (h.life?.saleId) reasons.push("売却の照会・合意を先に終えてください。");
@@ -83,7 +94,7 @@ export function placementReasons(
 export function moveHorse(
   w: World,
   h: Horse,
-  purpose: Exclude<Placement["purpose"], "sale">,
+  purpose: "training" | "rehab" | "rest" | "retirement",
   provider: string,
   reason: string,
   id: string,
@@ -178,6 +189,14 @@ export function seekBuyer(w: World, h: Horse, reason: string, id: string) {
       !h.life!.movementId &&
       !raceForHorse(w, h.id),
     "健康・出走・移動・売却手続きを先に確認してください。",
+  );
+  assertLife(
+    !activeCycle(w, h),
+    "繁殖の手続き・母仔の報告を先に終えてください。",
+  );
+  assertLife(
+    h.family?.growth?.stage !== "foal",
+    "離乳を終えるまでは、母仔の哺育を継続してください。",
   );
   const e = activeEpisode(w, h);
   assertLife(
@@ -340,7 +359,7 @@ export function placementDay(w: World) {
         h.details!.registered = true;
         h.details!.gateDate = nextDate(w.core.date, 7);
       } else
-        h.location = `${FARMS[e.targetId as keyof typeof FARMS].name}・${e.purpose === "retirement" ? "余生預託" : e.purpose === "rehab" ? "療養" : "休養"}`;
+        h.location = `${FARMS[e.targetId as keyof typeof FARMS].name}・${e.purpose === "retirement" ? "余生預託" : e.purpose === "rehab" ? "療養" : e.purpose === "breeding" ? "繁殖預託" : e.purpose === "rearing" ? "哺育・育成" : "休養"}`;
       event(
         w,
         `${e.id}:arrival`,

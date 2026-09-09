@@ -1,3 +1,4 @@
+import type { BreedingCareer, BreedingCommand } from "./breeding-types.ts";
 import type {
   CourseName,
   Portfolio,
@@ -16,6 +17,7 @@ export type Route =
 export type TrainerId = "saeki" | "mihara";
 export type Career = {
   life?: LifeCareer;
+  breeding?: BreedingCareer;
   portfolio?: Portfolio;
   stage: "market" | "purchase" | "boarding" | "active" | "ended";
   marketId: string;
@@ -53,6 +55,7 @@ export type HorseDetails = {
 };
 export type Market = {
   kind: "market";
+  age?: 1 | 2;
   id: string;
   date: string;
   lots: {
@@ -77,9 +80,11 @@ export type Invoice = {
     | "transport"
     | "medical"
     | "care"
-    | "sale-fee";
+    | "sale-fee"
+    | "stud";
   description: string;
   paid: boolean;
+  cancelled?: { date: string; reason: string; cycleId: string };
   deferral?: {
     originalDue: string;
     agreedDate: string;
@@ -136,6 +141,7 @@ export type Opportunity = Omit<
 >;
 export type CareerEntity = Market | Invoice | Consultation | Race;
 export type CareerCommand =
+  | BreedingCommand
   | LifeCommand
   | SeasonCommand
   | { type: "upgrade" }

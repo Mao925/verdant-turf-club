@@ -1,4 +1,10 @@
 import {
+  breedingDay,
+  reconcileBreeding,
+  breedingAfterRace,
+} from "./breeding.ts";
+import { breedingPending } from "./breeding-support.ts";
+import {
   lifeBeforeDay,
   lifeHealthDay,
   lifeAfterRace,
@@ -129,6 +135,7 @@ export function allPending(w: World) {
         (e.kind === "race" && e.status === "result"),
     ),
     ...(w.core.career?.life ? lifePending(w) : []),
+    ...(w.core.career?.breeding ? breedingPending(w) : []),
   ];
 }
 export function raceForHorse(w: World, id: string) {
@@ -553,6 +560,7 @@ function finishRace(w: World, r: SeasonRace) {
       );
   }
   if (w.core.career?.life) lifeAfterRace(w, r);
+  if (w.core.career?.breeding) breedingAfterRace(w, r);
   for (const id of r.ownedIds.filter(
     (id) => original.includes(id) && !r.field.includes(id),
   ))
@@ -653,7 +661,9 @@ export function advanceSeason(w: World, days: number, id: string) {
     if (Number(w.core.date.slice(0, 4)) > c.portfolio!.cohortYear)
       populate(w, Number(w.core.date.slice(0, 4)));
     const lifeEvent = c.life ? lifeBeforeDay(w) : false;
+    const breedingEvent = c.breeding ? breedingDay(w) : false;
     const healthEvent = c.life ? lifeHealthDay(w) : false;
+    const breedingHealthEvent = c.breeding ? reconcileBreeding(w) : false;
     // Every world's race is processed even when another horse's decision pauses this day.
     const selection = selectDay(w, w.core.date);
     let ownerRaced = false;
@@ -688,6 +698,8 @@ export function advanceSeason(w: World, days: number, id: string) {
       legacy ||
       lifeEvent ||
       healthEvent ||
+      breedingEvent ||
+      breedingHealthEvent ||
       allPending(w).length
     )
       break;

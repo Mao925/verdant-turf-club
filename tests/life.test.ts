@@ -406,6 +406,40 @@ describe("P4 診療・生活・人物の履歴", () => {
     ];
     expect(() => validateWorld(broken)).toThrow("根拠");
   });
+  it("選出で除外された馬の引退は、除外と登録の対応を壊さない", () => {
+    let w = fresh();
+    const h = horses(w)[0];
+    const spec = program(2026).find((r) => r.raceClass === "新馬")!;
+    const npc = Object.values(w.entities).find(
+      (e): e is Horse => e.kind === "horse" && e.id.startsWith("npc:"),
+    )!;
+    const race: SeasonRace = {
+      ...spec,
+      kind: "race",
+      seed: 1,
+      horseId: h.id,
+      status: "selected",
+      entries: [h.id, npc.id],
+      field: [npc.id],
+      ownedIds: [h.id],
+      excludedIds: [h.id],
+      cancelledIds: [],
+      selectionNotes: { [h.id]: "出走枠のため除外" },
+      applicantCount: 2,
+    };
+    w.entities[race.id] = race;
+    validateWorld(w);
+    w = act(w, {
+      type: "move-horse",
+      horseId: h.id,
+      purpose: "retirement",
+      providerId: "forest",
+      reason: "次の生活へ",
+    });
+    expect(w.entities[race.id]).toEqual(race);
+    expect(horses(w)[0].life!.racing).toBe("retired");
+    expect(() => validateWorld(w)).not.toThrow();
+  });
   it("競走中止は固定した診療・進行位置を再生し、賞金と完走時計を付けない", () => {
     const w = fresh(),
       spec = program(2026).find((r) => r.raceClass === "新馬")!;

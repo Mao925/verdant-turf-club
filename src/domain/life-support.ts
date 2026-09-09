@@ -1,3 +1,4 @@
+import { young, activeCycle } from "./breeding-support.ts";
 import {
   cash,
   horses,
@@ -61,6 +62,8 @@ export function trainable(w: World, h: Horse) {
   const e = activeEpisode(w, h);
   return (
     !!h.life &&
+    !young(h) &&
+    !activeCycle(w, h) &&
     !h.life.deceased &&
     h.life.racing === "active" &&
     !h.life.movementId &&
@@ -139,6 +142,8 @@ export function cancelPlans(
     ) {
       if (e.terms) {
         const r = e as SeasonRace;
+        // Selection already excluded this horse; preserve that decision and its entry.
+        if (r.excludedIds.includes(h.id)) continue;
         if (!r.entries.includes(h.id) && !r.field.includes(h.id)) continue;
         r.entries = r.entries.filter((id) => id !== h.id);
         r.field = r.field.filter((id) => id !== h.id);
@@ -187,7 +192,7 @@ export function bill(
   id: string,
   amountYen: number,
   description: string,
-  category: "medical" | "transport" | "sale-fee" = "medical",
+  category: "medical" | "transport" | "sale-fee" | "care" = "medical",
 ) {
   if (h.ownerId !== w.core.owner.id) return;
   assertLife(!w.entities[id], "費用の重複です。");

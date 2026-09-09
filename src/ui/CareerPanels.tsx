@@ -1,4 +1,14 @@
-import { createLife } from "../domain/life";
+import { createBreeding } from "../domain/breeding";
+import { young } from "../domain/breeding-support";
+import {
+  BreedingIntro,
+  BreedingPanel,
+  BreedingFinances,
+  MarketAge,
+  YoungBoarding,
+  YoungPortrait,
+  MarePortrait,
+} from "./BreedingPanels";
 import {
   LifeIntro,
   LifePanel,
@@ -72,7 +82,7 @@ export function CareerStart({
         onSubmit={(e) => {
           e.preventDefault();
           try {
-            const w = createLife(
+            const w = createBreeding(
               {
                 save: crypto.randomUUID(),
                 owner: crypto.randomUUID(),
@@ -184,10 +194,10 @@ export function CareerStart({
 export function CareerHome({ world: w, ready, act }: Props) {
   const c = w.core.career;
   const horse = ownedHorse(w);
-  if (!c) return <LifeIntro {...{ world: w, ready, act }} />;
+  if (!c) return <BreedingIntro {...{ world: w, ready, act }} />;
   return (
     <>
-      {!c.life && <LifeIntro {...{ world: w, ready, act }} />}
+      {!c.breeding && <BreedingIntro {...{ world: w, ready, act }} />}
       {c.portfolio && <PortfolioPanel {...{ world: w, ready, act }} />}
       <section className="page-heading">
         <div>
@@ -201,7 +211,7 @@ export function CareerHome({ world: w, ready, act }: Props) {
           <p>
             {horse
               ? `${horse.sex === "mare" ? "牝" : "牡"}${Number((horse.life?.deceased?.date ?? w.core.date).slice(0, 4)) - Number(horse.birthDate.slice(0, 4))}${horse.life?.deceased ? "歳で死亡" : "歳"} · ${horse.location}`
-              : "2歳調教公開市場 · 架空の馬と人物"}
+              : `${(w.entities[c.marketId] as Market).age === 1 ? "1歳育成市場" : "2歳調教公開市場"} · 架空の馬と人物`}
           </p>
         </div>
         <span className="date-card">{w.core.date.replaceAll("-", " / ")}</span>
@@ -213,7 +223,12 @@ export function CareerHome({ world: w, ready, act }: Props) {
       )}
       {c.stage === "market" && <MarketPanel {...{ world: w, ready, act }} />}
       {c.stage === "purchase" && <ReceivePanel {...{ world: w, ready, act }} />}
-      {c.stage === "boarding" && <TrainerPanel {...{ world: w, ready, act }} />}
+      {c.stage === "boarding" &&
+        (horse && young(horse) ? (
+          <YoungBoarding {...{ world: w, ready, act }} />
+        ) : (
+          <TrainerPanel {...{ world: w, ready, act }} />
+        ))}
       {horse && (
         <>
           <div className="home-grid">
@@ -229,6 +244,10 @@ export function CareerHome({ world: w, ready, act }: Props) {
                 </p>
                 <p>走った記録も、待つと決めた理由も、ここに残ります。</p>
               </article>
+            ) : young(horse) ? (
+              <YoungPortrait horse={horse} />
+            ) : horse.family?.broodmare ? (
+              <MarePortrait horse={horse} />
             ) : (
               <HorseView horse={horse} silk={w.core.owner.silk} />
             )}
@@ -263,6 +282,10 @@ export function CareerHome({ world: w, ready, act }: Props) {
                 <p className="fine">
                   競走登録は終了しました。以後のゲート試験・出走予定はありません。
                 </p>
+              ) : young(horse) ? (
+                <p className="fine">
+                  育成と健康の確認後、入厩・登録・ゲート試験へ進みます。
+                </p>
               ) : (
                 <p className="fine">
                   登録：{horse.details!.registered ? "完了" : "未完了"} ／
@@ -276,6 +299,7 @@ export function CareerHome({ world: w, ready, act }: Props) {
             </aside>
           </div>
           {c.life && <LifePanel {...{ world: w, ready, act }} />}
+          {c.breeding && <BreedingPanel {...{ world: w, ready, act }} />}
           {c.stage === "active" && (
             <ActivePanel key={horse.id} {...{ world: w, ready, act }} />
           )}
@@ -292,11 +316,13 @@ export function CareerHome({ world: w, ready, act }: Props) {
       )}
       {c.life && <LifeMemories {...{ world: w, ready, act }} />}
       <p className="fine scope-note">
-        {c.life
-          ? "P4試作：診療・療養・進退と人物の記憶。発生率・予後・費用は資料を参考にしたゲーム用の仮定です。繁殖・世代継承はP5で続きます。"
-          : c.portfolio
-            ? "P3試作：主要5場・芝4路線とダート2路線・通年番組・複数所有。契約と費用はゲーム用の設定です。健康・死亡・売却・引退はP4、繁殖はP5以降で加わります。"
-            : "P2試作：一頭・2歳市場〜3歳8月。通年番組へ引き継ぐと、複数所有と主要5場の競走が加わります。"}
+        {c.breeding
+          ? "P5試作：外部繁殖・1歳市場・仔の育成と親子の記録。率・遺伝・費用は資料を参考にしたゲーム用の仮定です。正式公開の検証はP6で続けます。"
+          : c.life
+            ? "P4試作：診療・療養・進退と人物の記憶。発生率・予後・費用は資料を参考にしたゲーム用の仮定です。繁殖・世代継承はP5で続きます。"
+            : c.portfolio
+              ? "P3試作：主要5場・芝4路線とダート2路線・通年番組・複数所有。契約と費用はゲーム用の設定です。健康・死亡・売却・引退はP4、繁殖はP5以降で加わります。"
+              : "P2試作：一頭・2歳市場〜3歳8月。通年番組へ引き継ぐと、複数所有と主要5場の競走が加わります。"}
       </p>
     </>
   );
@@ -314,7 +340,7 @@ function MarketPanel({ world: w, ready, act }: Props) {
     w,
     (w.core.career?.portfolio
       ? contracts(w).reduce((n, c) => n + c.monthlyYen, 0)
-      : 0) + 700000,
+      : 0) + (market.age === 1 ? 250000 : 700000),
     limit * 10000,
   );
   return (
@@ -322,6 +348,7 @@ function MarketPanel({ world: w, ready, act }: Props) {
       <p className="intro">
         走りの所見、まだ分からないこと、買った後の余裕。価格だけでは決められない、最初の選択です。
       </p>
+      <MarketAge {...{ world: w, ready, act }} />
       <div className="market-grid">
         {market.lots.map((l, i) => {
           const h = w.entities[l.horseId] as Horse;
@@ -959,6 +986,7 @@ export function FinancePanel({ world: w, ready, act }: Props) {
         </p>
       ))}
       {w.core.career?.life && <PaymentSupport {...{ world: w, ready, act }} />}
+      <BreedingFinances world={w} />
       <h2>賞金ゼロの12か月予測</h2>
       <p className="fine">
         現在の契約・請求・固定拠出が続く前提。売却の見込入金、未確定の診療費、契約終了後の生活費は含めていません。登録済みの競走は遠征費も仮置きします（除外・取消で変動）。将来の未登録レースや新しい支出は含みません。引当後の資金は、まだ支払っていない請求も差し引きます。

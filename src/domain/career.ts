@@ -1,3 +1,4 @@
+import { grow } from "./breeding-model.ts";
 import {
   cash,
   createWorld,
@@ -67,8 +68,15 @@ export function event(
   };
 }
 export function newMarket(w: World) {
-  const id = `market:${w.core.date}`;
-  const market: Market = { kind: "market", id, date: w.core.date, lots: [] };
+  const age = w.core.career?.breeding?.marketAge ?? 2;
+  const id = `market:${w.core.date}${age === 1 ? ":yearling" : ""}`;
+  const market: Market = {
+    kind: "market",
+    id,
+    date: w.core.date,
+    lots: [],
+    ...(w.core.career?.breeding ? { age } : {}),
+  };
   const names = [
     "アオノシルベ",
     "シロガネロード",
@@ -83,14 +91,39 @@ export function newMarket(w: World) {
       kind: "horse",
       id: horseId,
       name: names[i],
-      birthDate: `${Number(w.core.date.slice(0, 4)) - 2}-03-${18 + i}`,
+      birthDate: `${Number(w.core.date.slice(0, 4)) - age}-03-${18 + i}`,
       sex: i % 2 ? "stallion" : "mare",
       ownerId: `seller:${id}`,
       coat: coats[i],
-      location: "2歳調教公開市場",
+      location: age === 1 ? "1歳育成市場" : "2歳調教公開市場",
       details: details(seed, i),
     };
-    const askingYen = [6000000, 10000000, 3500000, 8000000][i];
+    const askingYen = (
+      age === 1
+        ? [3500000, 6500000, 2000000, 4500000]
+        : [6000000, 10000000, 3500000, 8000000]
+    )[i];
+    if (w.core.career?.breeding) {
+      const h = w.entities[horseId] as Horse;
+      Object.assign(h.details!, {
+        earnedYen: 0,
+        fans: 0,
+        awards: [],
+        turn: hash(horseId) % 2 ? "left" : "right",
+      });
+      if (age === 1) {
+        h.family = {
+          generation: 0,
+          growth: {
+            stage: "yearling",
+            target: { speed: h.details!.speed, stamina: h.details!.stamina },
+          },
+        };
+        grow(h, "yearling");
+        h.details!.unknown =
+          "1歳時の外見・歩様の所見です。競走調教の公開はなく、育成・入厩までの費用と待機が必要です。";
+      }
+    }
     market.lots.push({
       horseId,
       askingYen,
@@ -493,7 +526,7 @@ export function applyCareer(
         `purchase:${lot.horseId}`,
         price,
         "purchase",
-        "2歳市場の取得費（税込・試作）",
+        `${market.age ?? 2}歳市場の取得費（税込・試作）`,
         nextDate(w.core.date, 3),
       );
       event(
@@ -795,6 +828,7 @@ export function validateCareerEntity(
           "medical",
           "care",
           "sale-fee",
+          "stud",
         ].includes(e.category),
       "請求の参照・日付・金額が不正です。",
     );

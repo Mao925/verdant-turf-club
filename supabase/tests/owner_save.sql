@@ -46,6 +46,15 @@ begin
  perform pg_temp.check_ok((r->>'revision')::int=9,'old P1 retry stays idempotent after P4 upgrade');
  failed:=false;begin perform public.commit_owner_save(sid,gen_random_uuid(),9,core||'{"rulesetVersion":"calendar-2026"}'::jsonb,'[]',false);exception when sqlstate '22023' then failed:=true;end;
  perform pg_temp.check_ok(failed,'P4 mismatched ruleset rejected');
+ core:=core||'{"engineVersion":"owner-p5","rulesetVersion":"breeding-2026"}'::jsonb;
+ r:=public.commit_owner_save(sid,gen_random_uuid(),9,core,'[{"id":"breeding:1","kind":"breeding"},{"id":"foal:1","kind":"horse","family":{"damId":"horse-1"}}]',false);
+ perform pg_temp.check_ok((r->>'revision')::int=10,'P5 version accepted');
+ perform pg_temp.check_ok((select body->>'kind' from public.owner_entities where id='breeding:1')='breeding','P5 entity accepted');
+ r:=public.commit_owner_save(sid,cid,0,core||'{"engineVersion":"owner-p1","rulesetVersion":"foundation-2026"}'::jsonb,entities,false);
+ perform pg_temp.check_ok((r->>'revision')::int=10,'old P1 retry remains idempotent after P5 upgrade');
+ failed:=false;begin perform public.commit_owner_save(sid,gen_random_uuid(),10,core||'{"rulesetVersion":"life-2026"}'::jsonb,'[]',false);exception when sqlstate '22023' then failed:=true;end;
+ perform pg_temp.check_ok(failed,'P5 mismatched ruleset rejected');
+ perform pg_temp.check_ok((select 'statement_timeout=30s'=any(proconfig) from pg_proc where oid='public.commit_owner_save(uuid,uuid,bigint,jsonb,jsonb,boolean)'::regprocedure),'long-save timeout survives replacement');
 end $$;
 select set_config('request.jwt.claim.sub','20000000-0000-4000-8000-000000000002',true);
 select pg_temp.check_ok((select count(*) from public.owner_saves)=0,'other owner cannot read head');

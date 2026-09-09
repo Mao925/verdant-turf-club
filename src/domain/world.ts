@@ -1,4 +1,11 @@
 import {
+  applyBreeding,
+  upgradeBreeding,
+  validateBreeding,
+  validateBreedingEntity,
+} from "./breeding.ts";
+import type { Family, BreedingCycle } from "./breeding-types.ts";
+import {
   applySeason,
   upgradeSeason,
   validateSeason,
@@ -32,7 +39,8 @@ export type Entity =
   | JournalEvent
   | CareerEntity
   | NpcOwner
-  | LifeEntity;
+  | LifeEntity
+  | BreedingCycle;
 export type Horse = {
   kind: "horse";
   id: string;
@@ -44,6 +52,7 @@ export type Horse = {
   location: string;
   details?: HorseDetails;
   life?: LifeState;
+  family?: Family;
 };
 export type Contract = {
   kind: "contract";
@@ -55,7 +64,8 @@ export type Contract = {
   trainerId?: TrainerId;
   accruedYen?: number;
   endDate?: string;
-  purpose?: "training" | "rest" | "rehab" | "retirement";
+  purpose?:
+    "training" | "rest" | "rehab" | "retirement" | "breeding" | "rearing";
   providerId?: string;
   emergencyConsent?: boolean;
 };
@@ -74,7 +84,9 @@ export type LedgerEntry = {
     | "sale"
     | "medical"
     | "care"
-    | "sale-fee";
+    | "sale-fee"
+    | "stud"
+    | "refund";
   horseId?: string;
   contractId?: string;
   description: string;
@@ -88,9 +100,13 @@ export type JournalEvent = {
 };
 export type Core = {
   schemaVersion: 1;
-  engineVersion: "owner-p1" | "owner-p2" | "owner-p3" | "owner-p4";
+  engineVersion: "owner-p1" | "owner-p2" | "owner-p3" | "owner-p4" | "owner-p5";
   rulesetVersion:
-    "foundation-2026" | "prototype-2026" | "calendar-2026" | "life-2026";
+    | "foundation-2026"
+    | "prototype-2026"
+    | "calendar-2026"
+    | "life-2026"
+    | "breeding-2026";
   career?: Career;
   saveId: string;
   worldSeed: number;
@@ -184,7 +200,9 @@ export function validateWorld(value: unknown): asserts value is World {
           c.rulesetVersion === "prototype-2026") ||
         (c.engineVersion === "owner-p3" &&
           c.rulesetVersion === "calendar-2026") ||
-        (c.engineVersion === "owner-p4" && c.rulesetVersion === "life-2026")),
+        (c.engineVersion === "owner-p4" && c.rulesetVersion === "life-2026") ||
+        (c.engineVersion === "owner-p5" &&
+          c.rulesetVersion === "breeding-2026")),
     "この版の保存データには対応していません。",
   );
   check(
@@ -266,12 +284,14 @@ export function validateWorld(value: unknown): asserts value is World {
             "medical",
             "care",
             "sale-fee",
+            "stud",
+            "refund",
           ].includes(e.category as string) &&
           short(e.description, 200),
         "台帳が不正です。",
       );
       check(
-        ["capital", "prize", "sale"].includes(e.category as string)
+        ["capital", "prize", "sale", "refund"].includes(e.category as string)
           ? e.amountYen >= 0
           : e.amountYen <= 0,
         "台帳の符号が不正です。",
@@ -289,7 +309,9 @@ export function validateWorld(value: unknown): asserts value is World {
       );
       if (e.horseId !== undefined)
         check(refers(es, e.horseId, "horse"), "出来事の馬が存在しません。");
-    } else if (c.engineVersion === "owner-p4")
+    } else if (c.engineVersion === "owner-p5")
+      validateBreedingEntity(e, es, c.date as string);
+    else if (c.engineVersion === "owner-p4")
       validateLifeEntity(e, es, c.date as string);
     else if (c.engineVersion === "owner-p3")
       validateSeasonEntity(e, es, c.date as string);
@@ -306,6 +328,7 @@ export function validateWorld(value: unknown): asserts value is World {
   if (c.engineVersion === "owner-p2") validateCareer(value as World);
   if (c.engineVersion === "owner-p3") validateSeason(value as World);
   if (c.engineVersion === "owner-p4") validateLife(value as World);
+  if (c.engineVersion === "owner-p5") validateBreeding(value as World);
 }
 export function createWorld(
   ids: { save: string; owner: string; horse: string; contract: string },
@@ -383,6 +406,9 @@ export function applyCommand(
 ): World {
   validateWorld(world);
   check(UUID.test(id), "命令IDが不正です。");
+  if (command.type === "upgrade-breeding") return upgradeBreeding(world, id);
+  if (world.core.engineVersion === "owner-p5")
+    return applyBreeding(world, command, id);
   if (command.type === "upgrade-life") return upgradeLife(world, id);
   if (world.core.engineVersion === "owner-p4")
     return applyLife(world, command, id);

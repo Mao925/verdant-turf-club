@@ -323,7 +323,7 @@ test("P1 upgrade retains the existing save and resumes on reload", async ({
   await signInFixture(context);
   await routeService(context, db);
   await page.goto("/");
-  await page.getByRole("button", { name: "愛馬の生涯へ引き継ぐ" }).click();
+  await page.getByRole("button", { name: "親子の物語へ引き継ぐ" }).click();
   await saved(page);
   expect(cash(db.head!.state)).toBe(before);
   expect(db.head!.state.core.saveId).toBe(saveId);

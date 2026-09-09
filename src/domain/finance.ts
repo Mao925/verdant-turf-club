@@ -13,7 +13,7 @@ export function contracts(world: World) {
 }
 export function invoices(world: World) {
   return Object.values(world.entities).filter(
-    (e): e is Invoice => e.kind === "invoice" && !e.paid,
+    (e): e is Invoice => e.kind === "invoice" && !e.paid && !e.cancelled,
   );
 }
 export function reserve(world: World) {

@@ -980,3 +980,122 @@ select {
     width: 100%;
   }
 }
+
+/* P5 external breeding and the foal's own timeline. */
+.breeding-panel {
+  margin: 24px 0;
+  padding: 28px;
+  border: 1px solid var(--line, #d8d8c9);
+  border-radius: 14px;
+  background: #f7f6ec;
+}
+.breeding-panel h2 {
+  margin-top: 0;
+}
+.breeding-report,
+.breeding-budget {
+  background: #fffdf5;
+  border-left: 3px solid #688777;
+  padding: 20px;
+  margin: 20px 0;
+}
+.breeding-dates,
+.pedigree-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  color: #667468;
+  font-size: 0.85rem;
+}
+.sire-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.sire-grid article {
+  padding: 16px;
+  border: 1px solid #d8d8c9;
+  border-radius: 8px;
+}
+.sire-grid article.selected {
+  background: #e8eee2;
+  border-color: #688777;
+}
+.sire-grid h3 {
+  font-size: 1rem;
+}
+.breeding-budget dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.breeding-budget dd {
+  margin: 4px 0;
+  font-weight: 600;
+}
+.breeding-budget dt {
+  color: #667468;
+  font-size: 0.85rem;
+}
+.growth-steps {
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.growth-steps li {
+  padding: 8px 12px;
+  border-radius: 4px;
+  background: #eeece0;
+  font-size: 0.8rem;
+}
+.growth-steps li.current {
+  background: #294f40;
+  color: #fff;
+}
+.young-portrait {
+  min-height: 310px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #e9eee2;
+  border-radius: 14px;
+  text-align: center;
+  padding: 24px;
+}
+.young-portrait > span {
+  font-size: 80px;
+  line-height: 1.3;
+}
+.family-children {
+  padding: 12px 0;
+}
+.family-children span {
+  color: #667468;
+  font-size: 0.85rem;
+}
+.market-age {
+  margin: 16px 0 24px;
+}
+@media (max-width: 680px) {
+  .breeding-panel {
+    padding: 18px;
+  }
+  .sire-grid {
+    grid-template-columns: 1fr;
+  }
+  .breeding-budget dl {
+    grid-template-columns: 1fr;
+  }
+  .breeding-dates {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .breeding-report,
+  .breeding-budget {
+    padding: 14px;
+  }
+}

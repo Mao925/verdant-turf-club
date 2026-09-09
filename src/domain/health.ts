@@ -46,6 +46,10 @@ export const DIAGNOSES: Record<
     cost: 150000,
   },
   colic: { name: "疝痛を伴う疾病", days: 21, cost: 200000 },
+  foaling: { name: "分娩時の母馬の診療", days: 42, cost: 300000 },
+  neonatal: { name: "出生後の仔の診療", days: 30, cost: 200000 },
+  stillbirth: { name: "死産の確認", days: 0, cost: 0 },
+  "pregnancy-loss": { name: "妊娠喪失後の母馬の診療", days: 21, cost: 100000 },
   checkup: { name: "状態確認の診察", days: 3, cost: 30000 },
 };
 export function raceCause(
@@ -270,6 +274,8 @@ export function healthDay(w: World) {
       h.location = "NPC馬主の余生預託";
       cancelPlans(w, h, "NPC馬主が競走引退を決定");
     }
+    // The first 30 days use the separate neonatal model; do not add adult daily hazards.
+    if (h.family?.birthCycleId && day <= nextDate(h.birthDate, 30)) continue;
     const training = trainable(w, h);
     const cause = dailyCause(
       random(hash(`${h.id}:${day}:daily-health`, w.core.worldSeed))(),

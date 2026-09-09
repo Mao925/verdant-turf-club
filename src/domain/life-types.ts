@@ -21,20 +21,38 @@ export type LifeCareer = {
     debtYen: number;
     unplacedIds: string[];
     reason: string;
+    breedingIds?: string[];
   };
 };
 export type HealthCause =
-  "soreness" | "tendon" | "fracture" | "catastrophic" | "colic" | "checkup";
+  | "soreness"
+  | "tendon"
+  | "fracture"
+  | "catastrophic"
+  | "colic"
+  | "checkup"
+  | "foaling"
+  | "neonatal"
+  | "stillbirth"
+  | "pregnancy-loss";
 export type HealthEpisode = {
   kind: "health";
   id: string;
   horseId: string;
   date: string;
-  origin: "race" | "training" | "pasture" | "illness" | "checkup";
+  origin: "race" | "training" | "pasture" | "illness" | "checkup" | "breeding";
   cause: HealthCause;
   raceId?: string;
+  breedingId?: string;
   recurrenceOf?: string;
-  phase: "assessment" | "decision" | "rehab" | "cleared" | "limited" | "dead";
+  phase:
+    | "assessment"
+    | "decision"
+    | "rehab"
+    | "cleared"
+    | "limited"
+    | "dead"
+    | "superseded";
   outcome: "recover" | "limited" | "death";
   dueDate?: string;
   closedDate?: string;
@@ -51,7 +69,14 @@ export type Placement = {
   id: string;
   horseId: string;
   date: string;
-  purpose: "rest" | "rehab" | "retirement" | "training" | "sale";
+  purpose:
+    | "rest"
+    | "rehab"
+    | "retirement"
+    | "training"
+    | "sale"
+    | "breeding"
+    | "rearing";
   status:
     | "searching"
     | "offered"
@@ -79,7 +104,11 @@ export type Scene = {
     | "reunion"
     | "annual"
     | "sale"
-    | "payment";
+    | "payment"
+    | "breeding"
+    | "birth"
+    | "growth"
+    | "legacy";
   evidenceIds: string[];
   text: string;
   reply?: string;
