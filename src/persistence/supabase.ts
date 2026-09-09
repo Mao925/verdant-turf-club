@@ -25,7 +25,8 @@ export function configuredClient(): SupabaseClient | null {
       },
       global: {
         fetch: async (input, init) => {
-          const timeout = AbortSignal.timeout(15000);
+          // Long-history restore/read has a bounded 30 s database budget plus transfer time.
+          const timeout = AbortSignal.timeout(45000);
           const signal = init?.signal
             ? AbortSignal.any([init.signal, timeout])
             : timeout;

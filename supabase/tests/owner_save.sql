@@ -38,6 +38,14 @@ begin
  perform pg_temp.check_ok((select body->>'kind' from public.owner_entities where id='npc-owner:1')='npc-owner','P3 entity accepted');
  r:=public.commit_owner_save(sid,cid,0,core||'{"engineVersion":"owner-p1","rulesetVersion":"foundation-2026"}'::jsonb,entities,false);
  perform pg_temp.check_ok((r->>'revision')::int=8,'old P1 retry stays idempotent after P3 upgrade');
+ core:=core||'{"engineVersion":"owner-p4","rulesetVersion":"life-2026"}'::jsonb;
+ r:=public.commit_owner_save(sid,gen_random_uuid(),8,core,'[{"id":"health:1","kind":"health"},{"id":"placement:1","kind":"placement"},{"id":"scene:1","kind":"scene"}]',false);
+ perform pg_temp.check_ok((r->>'revision')::int=9,'P4 version accepted');
+ perform pg_temp.check_ok((select count(*) from public.owner_entities where body->>'kind' in ('health','placement','scene'))=3,'P4 entity kinds accepted');
+ r:=public.commit_owner_save(sid,cid,0,core||'{"engineVersion":"owner-p1","rulesetVersion":"foundation-2026"}'::jsonb,entities,false);
+ perform pg_temp.check_ok((r->>'revision')::int=9,'old P1 retry stays idempotent after P4 upgrade');
+ failed:=false;begin perform public.commit_owner_save(sid,gen_random_uuid(),9,core||'{"rulesetVersion":"calendar-2026"}'::jsonb,'[]',false);exception when sqlstate '22023' then failed:=true;end;
+ perform pg_temp.check_ok(failed,'P4 mismatched ruleset rejected');
 end $$;
 select set_config('request.jwt.claim.sub','20000000-0000-4000-8000-000000000002',true);
 select pg_temp.check_ok((select count(*) from public.owner_saves)=0,'other owner cannot read head');

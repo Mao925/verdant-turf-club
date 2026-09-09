@@ -82,8 +82,7 @@ export function ownedHorse(world: World): Horse | undefined {
     : undefined;
 }
 export function opportunities(world: World): Opportunity[] {
-  if (world.core.engineVersion === "owner-p3")
-    return seasonOpportunities(world);
+  if (!!world.core.career?.portfolio) return seasonOpportunities(world);
   const h = ownedHorse(world);
   if (!h?.details) return [];
   const d = h.details;

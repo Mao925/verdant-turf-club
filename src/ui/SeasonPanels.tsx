@@ -1,3 +1,5 @@
+import { lifeLabel } from "./LifePanels";
+import { livingOwned } from "../domain/life-support";
 import { useMemo, useState } from "react";
 import {
   cash,
@@ -47,7 +49,7 @@ export function PortfolioPanel({ world: w, ready, act }: Props) {
         </div>
         {c.stage === "active" && (
           <button
-            disabled={!ready || owned.length >= 12}
+            disabled={!ready || livingOwned(w).length >= 12}
             onClick={() => void act({ type: "open-market" })}
           >
             もう一頭を探す
@@ -86,11 +88,13 @@ export function PortfolioPanel({ world: w, ready, act }: Props) {
                   {classFor(h)} · {ROUTES[p.route]}
                 </span>
                 <span>
-                  {consult
-                    ? "相談への返事待ち"
-                    : r
-                      ? `${r.status === "result" ? "結果の精算待ち" : r.status === "registered" ? "選出予定" : "競走予定"} ${r.status === "registered" ? r.selectionDate : r.date}`
-                      : `次回相談 ${p.nextReview}`}
+                  {c.life && !r && !consult
+                    ? lifeLabel(w, h)
+                    : consult
+                      ? "相談への返事待ち"
+                      : r
+                        ? `${r.status === "result" ? "結果の精算待ち" : r.status === "registered" ? "選出予定" : "競走予定"} ${r.status === "registered" ? r.selectionDate : r.date}`
+                        : `次回相談 ${p.nextReview}`}
                 </span>
               </button>
             );
@@ -100,7 +104,7 @@ export function PortfolioPanel({ world: w, ready, act }: Props) {
       {pending.length > 0 && (
         <p className="notice" role="status">
           全頭で未決の確認が{pending.length}
-          件あります。各愛馬の相談・結果を確認してから、暦を進めます。
+          件あります。各愛馬の診療・売却条件・相談・結果を確認してから、暦を進めます。
         </p>
       )}
       {c.stage === "market" && (
@@ -159,7 +163,7 @@ export function RaceTermsPanel({
       </p>
       <p className="fine">
         本賞金1着{yen(r.terms.firstYen)}
-        。馬主受取は本賞金の80%＋一律50万円のゲーム用手当。収得賞金は別計算です。
+        。馬主受取は本賞金の80%＋完走馬に50万円のゲーム用手当。競走中止時は賞金・手当ともありません。収得賞金は別計算です。
       </p>
       {errors.length > 0 && <p className="fine">現時点：{errors.join(" ")}</p>}
     </div>
@@ -368,7 +372,10 @@ export function WorldRecords({ world: w }: { world: World }) {
               .slice(0, 8)
               .map((r) => (
                 <li key={r.id}>
-                  {r.date} {r.name} · {r.finish!.indexOf(h.id) + 1}着
+                  {r.date} {r.name} ·{" "}
+                  {r.dnf?.some((d) => d.horseId === h.id)
+                    ? "競走中止"
+                    : `${r.finish!.indexOf(h.id) + 1}着`}
                 </li>
               ))}
           </ol>

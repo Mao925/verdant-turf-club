@@ -1,4 +1,12 @@
 import {
+  lifeBeforeDay,
+  lifeHealthDay,
+  lifeAfterRace,
+  lifeYearEnd,
+} from "./life.ts";
+import { trainable, lifePending, livingOwned } from "./life-support.ts";
+import { raceHealth } from "./health.ts";
+import {
   cash,
   horses,
   nextDate,
@@ -103,6 +111,8 @@ export function focusHorse(w: World, id: string) {
   c.trainerId = p.trainerId;
 }
 function reviewHorse(w: World, horseId: string, id: string) {
+  if (w.core.career?.life && !trainable(w, w.entities[horseId] as Horse))
+    return;
   const old = w.core.career!.horseId;
   focusHorse(w, horseId);
   if (!activeRace(w) && w.core.career!.trainerId) {
@@ -112,11 +122,14 @@ function reviewHorse(w: World, horseId: string, id: string) {
   if (old && w.core.career!.portfolio!.plans[old]) focusHorse(w, old);
 }
 export function allPending(w: World) {
-  return Object.values(w.entities).filter(
-    (e) =>
-      (e.kind === "consultation" && !e.resolution) ||
-      (e.kind === "race" && e.status === "result"),
-  );
+  return [
+    ...Object.values(w.entities).filter(
+      (e) =>
+        (e.kind === "consultation" && !e.resolution) ||
+        (e.kind === "race" && e.status === "result"),
+    ),
+    ...(w.core.career?.life ? lifePending(w) : []),
+  ];
 }
 export function raceForHorse(w: World, id: string) {
   return Object.values(w.entities).find(
@@ -380,6 +393,7 @@ function selectDay(w: World, date: string) {
       e.ownerId === w.core.owner.id ||
       w.entities[e.ownerId]?.kind !== "npc-owner" ||
       !e.details.registered ||
+      !trainable(w, e) ||
       booked.has(e.id)
     )
       continue;
@@ -462,6 +476,8 @@ function selectDay(w: World, date: string) {
 }
 function finishRace(w: World, r: SeasonRace) {
   const original = [...r.field];
+  if (w.core.career?.life)
+    r.field = r.field.filter((id) => trainable(w, w.entities[id] as Horse));
   for (const id of r.ownedIds.filter((id) => r.field.includes(id))) {
     const h = w.entities[id] as Horse;
     if (
@@ -493,7 +509,7 @@ function finishRace(w: World, r: SeasonRace) {
     payDue(w);
     w.core.career!.horseId = old;
   }
-  const result = calculateRace(w, r);
+  const result = raceHealth(w, r, calculateRace(w, r));
   r.finish = result.map((x) => x.horseId);
   r.times = result.map((x) => x.seconds);
   const owned = r.ownedIds.filter((id) => r.field.includes(id));
@@ -501,16 +517,18 @@ function finishRace(w: World, r: SeasonRace) {
   result.forEach((row, i) => {
     const h = w.entities[row.horseId] as Horse,
       d = h.details!,
-      award = awardFor(r, i + 1);
+      award = raceAward(r, row.horseId);
     d.runs++;
-    if (i === 0) d.wins++;
+    if (i === 0 && row.stoppedAt === undefined) d.wins++;
     d.earnedYen = (d.earnedYen ?? 0) + award.earnedYen;
     d.fans =
       (d.fans ?? 0) +
-      (i < 5
-        ? (5 - i) *
-          (r.terms.grade === "GI" ? 200 : r.terms.grade === "一般" ? 5 : 40)
-        : 1);
+      (row.stoppedAt !== undefined
+        ? 0
+        : i < 5
+          ? (5 - i) *
+            (r.terms.grade === "GI" ? 200 : r.terms.grade === "一般" ? 5 : 40)
+          : 1);
     d.fatigue = 42;
     d.lastRaceDate = w.core.date;
     if (award.earnedYen > 0)
@@ -530,10 +548,11 @@ function finishRace(w: World, r: SeasonRace) {
       event(
         w,
         `${r.id}:result:${id}`,
-        `${r.name} ${r.finish.indexOf(id) + 1}着。結果を保存しました。`,
+        `${r.name} ${r.dnf?.some((d) => d.horseId === id) ? "競走中止" : `${r.finish.indexOf(id) + 1}着`}。結果を保存しました。`,
         id,
       );
   }
+  if (w.core.career?.life) lifeAfterRace(w, r);
   for (const id of r.ownedIds.filter(
     (id) => original.includes(id) && !r.field.includes(id),
   ))
@@ -633,6 +652,8 @@ export function advanceSeason(w: World, days: number, id: string) {
       h.details!.fatigue = Math.max(0, h.details!.fatigue - 2);
     if (Number(w.core.date.slice(0, 4)) > c.portfolio!.cohortYear)
       populate(w, Number(w.core.date.slice(0, 4)));
+    const lifeEvent = c.life ? lifeBeforeDay(w) : false;
+    const healthEvent = c.life ? lifeHealthDay(w) : false;
     // Every world's race is processed even when another horse's decision pauses this day.
     const selection = selectDay(w, w.core.date);
     let ownerRaced = false;
@@ -655,12 +676,21 @@ export function advanceSeason(w: World, days: number, id: string) {
         !raceForHorse(w, horseId)
       )
         reviewHorse(w, horseId, `review:${w.core.date}:${horseId}`);
-    if (!paid) {
+    if (c.life) lifeYearEnd(w);
+    if (!paid || !payDue(w)) {
       c.pause =
         "預託料が不足したため日付を止めました。未払いと愛馬は保持されています。";
       break;
     }
-    if (selection || ownerRaced || legacy || allPending(w).length) break;
+    if (
+      selection ||
+      ownerRaced ||
+      legacy ||
+      lifeEvent ||
+      healthEvent ||
+      allPending(w).length
+    )
+      break;
     if (w.core.date.slice(5) === "12-31") {
       c.pause = "年末です。全頭の収支と翌年の固定拠出を確認しましょう。";
       break;
@@ -679,7 +709,12 @@ export function advanceSeason(w: World, days: number, id: string) {
     undefined,
   );
 }
-export function applySeason(world: World, command: Command, id: string): World {
+export function applySeason(
+  world: World,
+  command: Command,
+  id: string,
+  finalize = true,
+): World {
   let w = structuredClone(world);
   const c = w.core.career!;
   rememberPlan(w);
@@ -696,7 +731,10 @@ export function applySeason(world: World, command: Command, id: string): World {
     focusHorse(w, command.horseId);
   } else if (command.type === "open-market") {
     check(c.stage === "active", "今は市場へ移動できません。");
-    check(horses(w).length < 12, "現在の預託受入は合計12頭までです。");
+    check(
+      (c.life ? livingOwned(w) : horses(w)).length < 12,
+      "現在の預託受入は合計12頭までです。",
+    );
     c.stage = "market";
     delete c.horseId;
     delete c.trainerId;
@@ -817,7 +855,7 @@ export function applySeason(world: World, command: Command, id: string): World {
         event(
           w,
           `${id}:${horseId}`,
-          `${r.name} ${s.finish!.indexOf(horseId) + 1}着。収得賞金加算${award.earnedYen.toLocaleString("ja-JP")}円と、馬主受取${award.cashYen.toLocaleString("ja-JP")}円を記録。`,
+          `${r.name} ${s.dnf?.some((d) => d.horseId === horseId) ? "競走中止" : `${s.finish!.indexOf(horseId) + 1}着`}。収得賞金加算${award.earnedYen.toLocaleString("ja-JP")}円と、馬主受取${award.cashYen.toLocaleString("ja-JP")}円を記録。`,
           horseId,
         );
       }
@@ -833,7 +871,10 @@ export function applySeason(world: World, command: Command, id: string): World {
     }
   } else {
     if (command.type === "bid") {
-      check(horses(w).length < 12, "所有上限12頭です。");
+      check(
+        (c.life ? livingOwned(w) : horses(w)).length < 12,
+        "所有上限12頭です。",
+      );
       requireBudget(w, command.limitYen + (horses(w).length ? 1500000 : 0));
     }
     if (command.type === "board")
@@ -854,8 +895,13 @@ export function applySeason(world: World, command: Command, id: string): World {
     }
   }
   rememberPlan(w);
-  validateWorld(w);
+  if (finalize) validateWorld(w);
   return w;
+}
+export function raceAward(r: SeasonRace, id: string) {
+  return r.dnf?.some((d) => d.horseId === id)
+    ? { mainYen: 0, allowanceYen: 0, cashYen: 0, earnedYen: 0 }
+    : awardFor(r, r.finish!.indexOf(id) + 1);
 }
 export function validateSeasonEntity(
   raw: Record<string, unknown>,
@@ -954,10 +1000,36 @@ export function validateSeasonEntity(
           Number.isFinite(t) &&
           t >= 40 &&
           t < 400 &&
-          (i === 0 || t >= r.times![i - 1]),
+          (i === 0 ||
+            r.dnf?.some((d) => d.horseId === r.finish![i]) ||
+            t >= r.times![i - 1]),
       ),
     "着順と時計が不正です。",
   );
+  if (r.dnf !== undefined) {
+    check(
+      Array.isArray(r.dnf) &&
+        new Set(r.dnf.map((d) => d.horseId)).size === r.dnf.length &&
+        r.dnf.every((d) => {
+          const e = entities[
+            d.episodeId
+          ] as import("./life-types.ts").HealthEpisode;
+          return (
+            r.field.includes(d.horseId) &&
+            Number.isFinite(d.at) &&
+            d.at > 0 &&
+            d.at < 1 &&
+            e?.kind === "health" &&
+            e.horseId === d.horseId &&
+            e.raceId === r.id
+          );
+        }) &&
+        r.finish
+          .slice(r.finish.length - r.dnf.length)
+          .every((id) => r.dnf!.some((d) => d.horseId === id)),
+      "競走中止の診療記録が不正です。",
+    );
+  }
   const owned = r.ownedIds.filter((id) => r.field.includes(id));
   check(
     r.awards &&
@@ -973,6 +1045,9 @@ export function validateSeasonEntity(
           (x, i) =>
             x.horseId === r.finish![i] &&
             x.seconds === r.times![i] &&
+            x.stoppedAt === r.dnf?.find((d) => d.horseId === x.horseId)?.at &&
+            x.episodeId ===
+              r.dnf?.find((d) => d.horseId === x.horseId)?.episodeId &&
             text(x.name, 40) &&
             /^#[\da-f]{6}$/i.test(x.coat) &&
             /^#[\da-f]{6}$/i.test(x.silk) &&
@@ -987,11 +1062,7 @@ export function validateSeasonEntity(
       "再生結果が不正です。",
     );
     check(
-      r.prizeYen ===
-        owned.reduce(
-          (n, id) => n + awardFor(r, r.finish!.indexOf(id) + 1).cashYen,
-          0,
-        ),
+      r.prizeYen === owned.reduce((n, id) => n + raceAward(r, id).cashYen, 0),
       "賞金総額が不正です。",
     );
   } else
@@ -1000,7 +1071,7 @@ export function validateSeasonEntity(
       "背景競走の状態が不正です。",
     );
   for (const id of owned) {
-    const expected = awardFor(r, r.finish.indexOf(id) + 1);
+    const expected = raceAward(r, id);
     check(sameValues(r.awards[id], expected), "賞金内訳が結果と一致しません。");
     const ledger = entities[`prize:${r.id}:${id}`] as
       import("./world.ts").LedgerEntry | undefined;

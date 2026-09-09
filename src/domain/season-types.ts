@@ -32,6 +32,7 @@ export type RaceTerms = {
 export type SeasonOpportunity = Opportunity & { terms: RaceTerms };
 export type SeasonRace = Race & {
   terms: RaceTerms;
+  dnf?: { horseId: string; episodeId: string; at: number }[];
   applicantCount: number;
   entries: string[];
   ownedIds: string[];

@@ -77,11 +77,14 @@ export function calculateRace(world: World, race: Race): RaceResult[] {
 }
 export function progressAt(result: RaceResult, seconds: number) {
   if (seconds <= 0) return 0;
-  if (seconds >= result.seconds) return 1;
+  if (seconds >= result.seconds) return result.stoppedAt ?? 1;
   const i = result.splits.findIndex((t) => t >= seconds);
   const a = result.splits[i - 1],
     b = result.splits[i];
-  return (i - 1 + (seconds - a) / (b - a)) / 20;
+  return Math.min(
+    result.stoppedAt ?? 1,
+    (i - 1 + (seconds - a) / (b - a)) / 20,
+  );
 }
 export function prizeFor(race: Race, rank: number) {
   const first = {

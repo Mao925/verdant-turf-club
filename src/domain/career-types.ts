@@ -5,6 +5,7 @@ import type {
   RaceTerms,
   SeasonCommand,
 } from "./season-types.ts";
+import type { LifeCareer, LifeCommand } from "./life-types.ts";
 export type Route =
   | "turf-sprint"
   | "turf-mile"
@@ -14,6 +15,7 @@ export type Route =
   | "dirt-middle";
 export type TrainerId = "saeki" | "mihara";
 export type Career = {
+  life?: LifeCareer;
   portfolio?: Portfolio;
   stage: "market" | "purchase" | "boarding" | "active" | "ended";
   marketId: string;
@@ -68,9 +70,22 @@ export type Invoice = {
   date: string;
   dueDate: string;
   amountYen: number;
-  category: "purchase" | "boarding" | "registration" | "transport";
+  category:
+    | "purchase"
+    | "boarding"
+    | "registration"
+    | "transport"
+    | "medical"
+    | "care"
+    | "sale-fee";
   description: string;
   paid: boolean;
+  deferral?: {
+    originalDue: string;
+    agreedDate: string;
+    creditor: string;
+    reason: string;
+  };
 };
 export type Consultation = {
   kind: "consultation";
@@ -86,6 +101,8 @@ export type Consultation = {
   reason?: string;
 };
 export type RaceResult = {
+  stoppedAt?: number;
+  episodeId?: string;
   horseId: string;
   name: string;
   coat: string;
@@ -119,6 +136,7 @@ export type Opportunity = Omit<
 >;
 export type CareerEntity = Market | Invoice | Consultation | Race;
 export type CareerCommand =
+  | LifeCommand
   | SeasonCommand
   | { type: "upgrade" }
   | { type: "bid"; horseId: string; limitYen: number; reason: string }

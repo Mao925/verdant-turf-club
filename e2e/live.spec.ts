@@ -1,3 +1,5 @@
+import { beginEpisode, DIAGNOSES } from "../src/domain/health";
+import { horses } from "../src/domain/world";
 import { readFileSync, writeFileSync } from "node:fs";
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { activeRace, openConsultation } from "../src/domain/career";
@@ -26,7 +28,7 @@ async function saved(p: Page) {
 test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conflict and restore", async ({
   browser,
 }) => {
-  test.setTimeout(150000);
+  test.setTimeout(360000);
   const parsed = JSON.parse(process.env.P2_LIVE_SESSION!);
   const headers = {
     apikey: process.env.P2_LIVE_KEY!,
@@ -48,6 +50,15 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
     viewport: { width: 1280, height: 900 },
   });
   await session(context);
+  await context.addInitScript(() => {
+    if (sessionStorage.getItem("p4-test-seed-used")) return;
+    const original = crypto.randomUUID.bind(crypto);
+    crypto.randomUUID = () => {
+      sessionStorage.setItem("p4-test-seed-used", "yes");
+      crypto.randomUUID = original;
+      return "40000000-0000-4000-8000-000000000004";
+    };
+  });
   const page = await context.newPage();
   await page.goto("/");
   await page.getByLabel("馬主名", { exact: true }).fill("クラウド検証用馬主");
@@ -133,9 +144,7 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
   });
   await second.goto("/");
   await saved(second);
-  await page
-    .getByRole("button", { name: "今回は見送り、待つ", exact: true })
-    .click();
+  await page.locator(".horse-roster button").first().click();
   await saved(page);
   const latest = await load();
   const diagnosticStart = Date.now();
@@ -165,9 +174,7 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
     console.log("Stale direct RPC timed out", Date.now() - diagnosticStart);
   }
 
-  await second
-    .getByRole("button", { name: "今回は見送り、待つ", exact: true })
-    .click();
+  await second.locator(".horse-roster button").first().click();
   try {
     await expect(
       second.getByText("別の端末で更新されています", { exact: false }),
@@ -224,8 +231,47 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
     { headers },
   );
   expect(await others.json()).toEqual([]);
-  if (process.env.P3_LIVE_WORLD) {
-    const year = JSON.parse(readFileSync(process.env.P3_LIVE_WORLD, "utf8"));
+  // Restore a synthetic clinical episode only in this disposable account, then use the actual UI/RPC.
+  const clinical = (await load()).state;
+  const horse = horses(clinical)[0];
+  const episode = beginEpisode(clinical, horse, "tendon", "training");
+  episode.phase = "decision";
+  episode.outcome = "recover";
+  episode.diagnosis = DIAGNOSES.tendon.name;
+  delete episode.dueDate;
+  validateWorld(clinical);
+  await second.locator("input[type=file]").setInputFiles({
+    name: "clinical-fixture.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(backup(clinical, latest.revision)),
+  });
+  await second
+    .getByRole("button", { name: "現在の記録を保管して復旧する", exact: true })
+    .click();
+  await saved(second);
+  await second.getByRole("button", { name: "愛馬と予定", exact: true }).click();
+  await second
+    .getByRole("button", { name: "白樺牧場で療養を始める", exact: true })
+    .click();
+  await saved(second);
+  await second.reload();
+  await saved(second);
+  const clinicalSaved = await load();
+  expect(clinicalSaved.state.entities[episode.id]).toMatchObject({
+    phase: "rehab",
+    outcome: "recover",
+  });
+  expect(
+    Object.values(clinicalSaved.state.entities).some(
+      (e) => e.kind === "scene" && e.horseId === horse.id,
+    ),
+  ).toBe(true);
+  console.log(
+    "P4 clinical care, transfer, person memory and reload verified in real RPC.",
+  );
+  const longWorld = process.env.P4_LIVE_WORLD ?? process.env.P3_LIVE_WORLD;
+  if (longWorld) {
+    const year = JSON.parse(readFileSync(longWorld, "utf8"));
     validateWorld(year);
     const current = await load();
     year.core.saveId = current.state.core.saveId;
@@ -272,7 +318,7 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
       .click();
     await expect(second.locator(".horse-roster button")).toHaveCount(4);
     const proof = {
-      kind: "real Supabase test account, one-year P3 world and explicit restores; HTTP latency on this Mac",
+      kind: `real Supabase test account, ${year.core.engineVersion} synthetic long world and explicit restores; HTTP latency on this Mac`,
       saveBytes: Buffer.byteLength(JSON.stringify(year)),
       restoreWriteMs: writes,
       loadMs,
@@ -280,7 +326,9 @@ test("real Auth/RPC: acquisition, race, loss of response, offline recovery, conf
       entities: Object.keys(year.entities).length,
     };
     writeFileSync(
-      "artifacts/p3-live-year.json",
+      process.env.P4_LIVE_WORLD
+        ? "artifacts/p4-live-three-year.json"
+        : "artifacts/p3-live-year.json",
       JSON.stringify(proof, null, 2),
     );
     console.log(JSON.stringify(proof));

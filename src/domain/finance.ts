@@ -73,7 +73,10 @@ export function closeDay(world: World) {
         horseId: contract.horseId,
         contractId: contract.id,
         amountYen: contract.accruedYen,
-        category: "boarding",
+        category:
+          contract.purpose && contract.purpose !== "training"
+            ? "care"
+            : "boarding",
         description: `${date.slice(0, 7)} 預託料（月末締め・翌7日支払）`,
         paid: false,
       };

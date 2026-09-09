@@ -1,4 +1,12 @@
-import { createSeason, allPending } from "../domain/season";
+import { createLife } from "../domain/life";
+import {
+  LifeIntro,
+  LifePanel,
+  LifeMemories,
+  PaymentSupport,
+  lifeLabel,
+} from "./LifePanels";
+import { allPending } from "../domain/season";
 import { classFor, routeFor } from "../domain/program";
 import type { SeasonOpportunity, SeasonRace } from "../domain/season-types";
 import {
@@ -64,7 +72,7 @@ export function CareerStart({
         onSubmit={(e) => {
           e.preventDefault();
           try {
-            const w = createSeason(
+            const w = createLife(
               {
                 save: crypto.randomUUID(),
                 owner: crypto.randomUUID(),
@@ -163,6 +171,9 @@ export function CareerStart({
           <p className="fine wide">
             150万円を引退後などのために引き当てます。拠出は途中で自由に増やせない固定枠です。すべてゲーム内の仮想資金です。
           </p>
+          <p className="fine wide">
+            委託先は異常時に初期対応を行い、診療費を精算します。生命予後が極めて厳しい場合は、獣医師が事前合意に基づく緊急対応を判断します。経歴を始めると、この条件で愛馬を託します。
+          </p>
           <button className="primary">経歴を始める</button>
         </fieldset>
       </form>
@@ -173,42 +184,10 @@ export function CareerStart({
 export function CareerHome({ world: w, ready, act }: Props) {
   const c = w.core.career;
   const horse = ownedHorse(w);
-  if (!c)
-    return (
-      <section className="start-card">
-        <p className="eyebrow">続きの一ページへ</p>
-        <h1>通年番組で、愛馬との経歴を続ける</h1>
-        <p>
-          現在の馬・日付・資金・履歴を残して、新しい競走と相談へ進みます。今後の預託料は月末締め・翌月7日払いへ変わります。
-        </p>
-        <p>移行後は既存の愛馬を残したまま、市場で追加の所有馬を探せます。</p>
-        <button
-          className="primary"
-          disabled={!ready}
-          onClick={() => void act({ type: "upgrade-season" })}
-        >
-          愛馬と記録を引き継ぐ
-        </button>
-      </section>
-    );
+  if (!c) return <LifeIntro {...{ world: w, ready, act }} />;
   return (
     <>
-      {!c.portfolio && (
-        <section className="decision-card">
-          <p className="eyebrow">P3 · 続きの一ページ</p>
-          <h2>5場の通年番組と、複数の愛馬へ</h2>
-          <p>
-            愛馬・契約・日付・途中の相談・未精算結果を残して引き継ぎます。P2で登録した競走は当時の条件を保ちます。
-          </p>
-          <button
-            className="primary"
-            disabled={!ready}
-            onClick={() => void act({ type: "upgrade-season" })}
-          >
-            通年番組へ引き継ぐ
-          </button>
-        </section>
-      )}
+      {!c.life && <LifeIntro {...{ world: w, ready, act }} />}
       {c.portfolio && <PortfolioPanel {...{ world: w, ready, act }} />}
       <section className="page-heading">
         <div>
@@ -238,7 +217,21 @@ export function CareerHome({ world: w, ready, act }: Props) {
       {horse && (
         <>
           <div className="home-grid">
-            <HorseView horse={horse} silk={w.core.owner.silk} />
+            {horse.life?.deceased ? (
+              <article className="memorial">
+                <p className="eyebrow">ともに過ごした日々</p>
+                <span style={{ color: horse.coat }} aria-hidden="true">
+                  ♞
+                </span>
+                <h2>{horse.name}</h2>
+                <p>
+                  {horse.birthDate} — {horse.life.deceased.date}
+                </p>
+                <p>走った記録も、待つと決めた理由も、ここに残ります。</p>
+              </article>
+            ) : (
+              <HorseView horse={horse} silk={w.core.owner.silk} />
+            )}
             <aside className="letter">
               <p className="eyebrow">この馬と目指す景色</p>
               <h2>{c.horseGoal}</h2>
@@ -248,13 +241,16 @@ export function CareerHome({ world: w, ready, act }: Props) {
               <div className="letter-sign">
                 {c.trainerId
                   ? `担当調教師 ${TRAINERS[c.trainerId].name}`
-                  : "預託先の選択を待っています"}
+                  : (contracts(w).find((x) => x.horseId === horse.id)
+                      ?.trainer ?? "これまでの愛馬の記録")}
               </div>
               <p>
                 {horse.details!.runs}戦 {horse.details!.wins}勝 ·{" "}
-                {horse.details!.fatigue > 35
-                  ? "回復を待つ時期"
-                  : "調整を継続中"}
+                {c.life
+                  ? lifeLabel(w, horse)
+                  : horse.details!.fatigue > 35
+                    ? "回復を待つ時期"
+                    : "調整を継続中"}
               </p>
               {c.portfolio && (
                 <p>
@@ -272,10 +268,13 @@ export function CareerHome({ world: w, ready, act }: Props) {
               </p>
             </aside>
           </div>
+          {c.life && <LifePanel {...{ world: w, ready, act }} />}
           {c.stage === "active" && (
             <ActivePanel key={horse.id} {...{ world: w, ready, act }} />
           )}
-          <GoalsPanel {...{ world: w, ready, act }} />
+          {c.stage !== "ended" && !horse.life?.deceased && (
+            <GoalsPanel {...{ world: w, ready, act }} />
+          )}
         </>
       )}
       {c.portfolio && (
@@ -284,10 +283,13 @@ export function CareerHome({ world: w, ready, act }: Props) {
           <WorldRecords world={w} />
         </>
       )}
+      {c.life && <LifeMemories {...{ world: w, ready, act }} />}
       <p className="fine scope-note">
-        {c.portfolio
-          ? "P3試作：主要5場・芝4路線とダート2路線・通年番組・複数所有。契約と費用はゲーム用の設定です。健康・死亡・売却・引退はP4、繁殖はP5以降で加わります。"
-          : "P2試作：一頭・2歳市場〜3歳8月。通年番組へ引き継ぐと、複数所有と主要5場の競走が加わります。"}
+        {c.life
+          ? "P4試作：診療・療養・進退と人物の記憶。発生率・予後・費用は資料を参考にしたゲーム用の仮定です。繁殖・世代継承はP5で続きます。"
+          : c.portfolio
+            ? "P3試作：主要5場・芝4路線とダート2路線・通年番組・複数所有。契約と費用はゲーム用の設定です。健康・死亡・売却・引退はP4、繁殖はP5以降で加わります。"
+            : "P2試作：一頭・2歳市場〜3歳8月。通年番組へ引き継ぐと、複数所有と主要5場の競走が加わります。"}
       </p>
     </>
   );
@@ -816,7 +818,9 @@ function ActivePanel({ world: w, ready, act }: Props) {
                 ? "相談を決めてから日付を進めます。"
                 : race?.status === "result"
                   ? "精算後に次の方針を相談します。"
-                  : `次の確認：${race ? (race.status === "registered" ? race.selectionDate : race.date) : c.nextReview}。請求・選出・競走でも止まります。`}
+                  : c.life && !c.trainerId
+                    ? "診療・受入先からの報告と請求を待ちながら、暦を進めます。"
+                    : `次の確認：${race ? (race.status === "registered" ? race.selectionDate : race.date) : c.nextReview}。請求・選出・競走でも止まります。`}
           </p>
         </div>
         <div className="actions">
@@ -945,9 +949,10 @@ export function FinancePanel({ world: w, ready, act }: Props) {
           月末締め、翌月7日払い
         </p>
       ))}
+      {w.core.career?.life && <PaymentSupport {...{ world: w, ready, act }} />}
       <h2>賞金ゼロの12か月予測</h2>
       <p className="fine">
-        現在の契約・請求・固定拠出が続く前提。登録済みの競走は遠征費も仮置きします（除外・取消で変動）。将来の未登録レースや新しい支出は含みません。引当後の資金は、まだ支払っていない請求も差し引きます。
+        現在の契約・請求・固定拠出が続く前提。売却の見込入金、未確定の診療費、契約終了後の生活費は含めていません。登録済みの競走は遠征費も仮置きします（除外・取消で変動）。将来の未登録レースや新しい支出は含みません。引当後の資金は、まだ支払っていない請求も差し引きます。
       </p>
       {p.firstShortage && (
         <p className="notice">
@@ -1028,7 +1033,9 @@ export function FinancePanel({ world: w, ready, act }: Props) {
         <details className="goals-panel">
           <summary>資金不足で続けられないとき</summary>
           <p>
-            購入・出走の見送りを検討できます。期日の費用を支払えない場合、日付は止まります。活動終了では所有・債務・記録を残します。売却や引退後の実務は後続段階で加わります。
+            {w.core.career.life
+              ? "出走の見送り、休養・引退預託、買い手への照会、支払猶予を相談できます。活動終了では現在の契約を精算し、既発生債務と飼養先が未解決の馬を記録します。売却未成立の馬は所有を続け、将来の費用が解決した扱いにはなりません。"
+              : "購入・出走の見送りを検討できます。期日の費用を支払えない場合、日付は止まります。活動終了では所有・債務・記録を残します。"}
           </p>
           <label>
             活動を終える理由

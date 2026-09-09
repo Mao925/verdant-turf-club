@@ -144,7 +144,7 @@ export function App() {
       <footer>
         VERDANT · 馬主の物語　
         <span>
-          P3試作 ·
+          P4試作 ·
           複数の愛馬と、通年の挑戦。繁殖・死亡を含む正式版は開発中です。
         </span>
       </footer>

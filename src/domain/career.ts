@@ -262,7 +262,7 @@ export function report(w: World, id: string) {
   const last = races[0];
   const rank = last?.result?.findIndex((r) => r.horseId === h.id);
   const evidence = last
-    ? `${last.date} ${last.name}は${(rank ?? 0) + 1}着。${last.surface}での一戦から、${last.surface === "芝" ? "芝の流れ" : "砂の走り"}を経験しました。`
+    ? `${last.date} ${last.name}は${last.result?.find((r) => r.horseId === h.id)?.stoppedAt !== undefined ? "競走中止" : `${(rank ?? 0) + 1}着`}。${last.surface}での一戦から、${last.surface === "芝" ? "芝の流れ" : "砂の走り"}を経験しました。`
     : h.details!.gateDate && h.details!.gateDate <= w.core.date
       ? `${h.details!.gateDate}にゲート試験を通過。${h.details!.observation}`
       : `ゲート試験の報告を待っています。${h.details!.observation}`;
@@ -787,9 +787,15 @@ export function validateCareerEntity(
         money(e.amountYen) &&
         typeof e.paid === "boolean" &&
         text(e.description) &&
-        ["purchase", "boarding", "registration", "transport"].includes(
-          e.category,
-        ),
+        [
+          "purchase",
+          "boarding",
+          "registration",
+          "transport",
+          "medical",
+          "care",
+          "sale-fee",
+        ].includes(e.category),
       "請求の参照・日付・金額が不正です。",
     );
     if (e.contractId)
@@ -1006,8 +1012,10 @@ export function validateCareer(w: World) {
         check(d.lastRaceDate <= w.core.date, "未発生の競走履歴です。");
     } else if (e.kind === "contract") {
       check(
-        e.trainerId &&
-          Object.hasOwn(TRAINERS, e.trainerId) &&
+        ((e.trainerId && Object.hasOwn(TRAINERS, e.trainerId)) ||
+          (w.core.career?.life &&
+            e.providerId &&
+            ["forest", "haven"].includes(e.providerId))) &&
           money(e.accruedYen),
         "預託の未請求額が不正です。",
       );

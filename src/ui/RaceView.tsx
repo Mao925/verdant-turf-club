@@ -92,7 +92,9 @@ export function RaceView({ race }: { race: Race }) {
                   (profile
                     ? (race.distance / profile.lap) * TRACK_LENGTH
                     : TRACK_LENGTH) +
-                (Math.max(0, seconds - r.seconds) *
+                ((r.stoppedAt === undefined
+                  ? Math.max(0, seconds - r.seconds)
+                  : 0) *
                   (profile
                     ? (race.distance / profile.lap) * TRACK_LENGTH
                     : TRACK_LENGTH)) /
@@ -101,7 +103,10 @@ export function RaceView({ race }: { race: Race }) {
                 ? ((i % 9) - Math.min(8, rows.length - 1) / 2) * 1.5
                 : (i - 3.5) * 0.55,
               v:
-                seconds > 0 && seconds < r.seconds
+                seconds > 0 &&
+                seconds < r.seconds &&
+                (r.stoppedAt === undefined ||
+                  progressAt(r, seconds) < r.stoppedAt)
                   ? race.distance / r.seconds
                   : 0,
             }));
@@ -156,7 +161,11 @@ export function RaceView({ race }: { race: Race }) {
                 className={`race-lane ${ownedIds.includes(r.horseId) ? "my-horse" : ""}`}
               >
                 <span>
-                  {i + 1} {r.name}
+                  {r.stoppedAt !== undefined &&
+                  progressAt(r, time) >= r.stoppedAt
+                    ? "中止"
+                    : i + 1}{" "}
+                  {r.name}
                   {ownedIds.includes(r.horseId) ? "・愛馬" : ""}
                 </span>
                 <div className="race-rail">
@@ -247,10 +256,12 @@ export function RaceView({ race }: { race: Race }) {
               className={ownedIds.includes(r.horseId) ? "my-horse" : ""}
             >
               <strong>
-                {i + 1}着 {r.name}
+                {r.stoppedAt === undefined ? `${i + 1}着` : "競走中止"} {r.name}
               </strong>
               <span>
-                {r.seconds.toFixed(3)}秒
+                {r.stoppedAt === undefined
+                  ? `${r.seconds.toFixed(3)}秒`
+                  : "診療記録を確認してください"}
                 {ownedIds.includes(r.horseId) ? " · あなたの愛馬" : ""}
               </span>
             </li>

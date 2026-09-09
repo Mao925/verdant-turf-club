@@ -1,3 +1,4 @@
+import { trainable } from "./life-support.ts";
 import type { Horse, World } from "./world.ts";
 import { nextDate } from "./world.ts";
 import type { Opportunity, Route } from "./career-types.ts";
@@ -835,6 +836,8 @@ export function seasonEligibility(
   if (h?.kind !== "horse" || !h.details) return ["所有馬がいません。"];
   const out = termsReasons(h, r),
     d = h.details;
+  if (!trainable(w, h))
+    out.push("診療・休養・移動・売却手続きにより出走できません。");
   if (!d.registered) out.push("競走馬登録が未完了です。");
   if (!d.gateDate || d.gateDate > w.core.date)
     out.push("ゲート試験の通過報告を待っています。");

@@ -36,7 +36,7 @@ async function saved(page: import("@playwright/test").Page) {
     page.getByText("クラウド保存済み", { exact: false }),
   ).toBeVisible();
 }
-test("P3: P2 migration, second purchase, individual plans and combined finances on desktop and mobile", async ({
+test("P4: P2 migration, second purchase, individual plans and combined finances on desktop and mobile", async ({
   page,
   context,
 }) => {
@@ -60,11 +60,11 @@ test("P3: P2 migration, second purchase, individual plans and combined finances 
   await routeService(context, db);
   await page.goto("/");
   await page
-    .getByRole("button", { name: "通年番組へ引き継ぐ", exact: true })
+    .getByRole("button", { name: "愛馬の生涯へ引き継ぐ", exact: true })
     .click();
   await saved(page);
   expect(cash(db.head.state)).toBe(before);
-  expect(db.head.state.core.engineVersion).toBe("owner-p3");
+  expect(db.head.state.core.engineVersion).toBe("owner-p4");
   await page
     .getByRole("button", { name: "もう一頭を探す", exact: true })
     .click();

@@ -11,11 +11,13 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:db": "python3 scripts/verify_database.py",
-    "format:check": "prettier --check src/domain src/engine src/application src/persistence src/ui src/main.tsx src/owner.css tests/owner.test.ts tests/career.test.ts e2e playwright.config.ts vitest.config.ts tsconfig.json scripts/measure-world.mjs scripts/measure-career.mjs tests/season.test.ts scripts/measure-season.mjs",
+    "format:check": "prettier --check src/domain src/engine src/application src/persistence src/ui src/main.tsx src/owner.css tests/owner.test.ts tests/career.test.ts e2e playwright.config.ts vitest.config.ts tsconfig.json scripts/measure-world.mjs scripts/measure-career.mjs tests/season.test.ts scripts/measure-season.mjs tests/life.test.ts scripts/measure-life.mjs scripts/measure-health.mjs",
     "measure": "node --experimental-strip-types scripts/measure-world.mjs",
     "measure:p2": "node --experimental-strip-types scripts/measure-career.mjs",
     "backup": "python3 scripts/backup-cloud.py",
-    "measure:p3": "node --experimental-strip-types scripts/measure-season.mjs"
+    "measure:p3": "node --experimental-strip-types scripts/measure-season.mjs",
+    "measure:p4": "node --experimental-strip-types scripts/measure-life.mjs",
+    "measure:health": "node --experimental-strip-types scripts/measure-health.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
