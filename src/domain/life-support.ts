@@ -245,6 +245,8 @@ export function confirmDeath(
   h.life.deceased = { date: w.core.date, episodeId: e.id, mode };
   h.life.episodeId = e.id;
   h.details!.registered = false;
+  if (h.details!.gateDate && h.details!.gateDate > w.core.date)
+    delete h.details!.gateDate;
   h.location = "生涯の記録";
   cancelPlans(w, h, "健康上の理由で予定を終了しました。", exceptRace);
   invalidatePlacement(w, h, "健康急変により手続き終了");

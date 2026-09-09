@@ -174,10 +174,14 @@ export function lifeYearEnd(w: World) {
       h,
       h.life!.lastTrainer ?? "forest",
       "annual",
-      [...races.slice(-3), ...decisions.slice(-3), ...care.slice(-3)].map(
-        (e) => e.id,
-      ),
-      `${year}年の${h.name}。出走${races.length}回、相談${decisions.length}件、診療${care.length}件。支払った費用は${paid.toLocaleString("ja-JP")}円でした。${prev?.kind === "consultation" ? `最後の合意は「${prev.resolution}」、理由は「${prev.reason}」。` : ""}${h.life!.deceased ? "別れの年になりました。結果から、当時の判断を一律に誤りとは扱いません。" : h.life!.racing !== "active" ? "競走を離れた後の生活も、同じ馬の一年です。" : `「${p.horseGoal}」という願いを、来年も継ぐか変えるか、また話しましょう。`}`,
+      [
+        ...new Set(
+          [...races.slice(-3), ...decisions.slice(-3), ...care.slice(-3)]
+            .map((e) => e.id)
+            .concat(h.life!.deceased ? [h.life!.deceased.episodeId] : []),
+        ),
+      ],
+      `${year}年の${h.name}。出走${races.length}回、相談${decisions.length}件、診療${care.length}件。支払った費用は${paid.toLocaleString("ja-JP")}円でした。${prev?.kind === "consultation" ? `最後の合意は「${prev.resolution}」、理由は「${prev.reason}」。` : ""}${h.life!.deceased ? (h.life!.deceased.date.startsWith(year) ? "別れの年になりました。結果から、当時の判断を一律に誤りとは扱いません。" : `${h.life!.deceased.date}に亡くなってからも、共に過ごした日々の記録は残っています。`) : h.life!.racing !== "active" ? "競走を離れた後の生活も、同じ馬の一年です。" : `「${p.horseGoal}」という願いを、来年も継ぐか変えるか、また話しましょう。`}`,
     );
   }
 }

@@ -12,7 +12,7 @@ import {
   type Horse,
   type Command,
 } from "../src/domain/world.ts";
-import { createLife, upgradeLife } from "../src/domain/life.ts";
+import { createLife, upgradeLife, lifeYearEnd } from "../src/domain/life.ts";
 import { createCareer, openConsultation } from "../src/domain/career.ts";
 import {
   createSeason,
@@ -87,6 +87,20 @@ function jumpReview(w: World, e: HealthEpisode) {
   return activeEpisode(w, horses(w)[0])!;
 }
 describe("P4 診療・生活・人物の履歴", () => {
+  it("死亡翌年の年表は死亡年を取り違えない", () => {
+    const w = fresh(),
+      h = horses(w)[0];
+    beginEpisode(w, h, "catastrophic", "training");
+    w.core.date = "2027-12-31";
+    lifeYearEnd(w);
+    const s = w.entities[`annual-life:2027:${h.id}`];
+    expect(s.kind).toBe("scene");
+    if (s.kind === "scene") {
+      expect(s.text).toContain("2026-05-01に亡くなってからも");
+      expect(s.text).not.toContain("別れの年になりました");
+      expect(s.evidenceIds).toContain(h.life!.deceased!.episodeId);
+    }
+  });
   it("P1/P2/P3の個体と現金を引き継ぎ、過去に診療を追加しない", () => {
     for (const factory of [
       (id: ReturnType<typeof ids>) => createWorld(id, "試験"),
@@ -208,6 +222,7 @@ describe("P4 診療・生活・人物の履歴", () => {
     expect(contracts(w)).toHaveLength(0);
     expect(cash(w)).toBe(before - 123456 - 50000 - 150000);
     expect(h.life!.deceased?.mode).toBe("euthanasia");
+    expect(h.details!.gateDate).toBeUndefined();
     expect(h.details!.registered).toBe(false);
     expect(() => beginEpisode(w, h, "catastrophic", "training")).not.toThrow();
     w = act(w, { type: "acknowledge-health", episodeId: e.id });

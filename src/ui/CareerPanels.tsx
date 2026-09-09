@@ -200,7 +200,7 @@ export function CareerHome({ world: w, ready, act }: Props) {
           </h1>
           <p>
             {horse
-              ? `${horse.sex === "mare" ? "牝" : "牡"}${Number(w.core.date.slice(0, 4)) - Number(horse.birthDate.slice(0, 4))}歳 · ${horse.location}`
+              ? `${horse.sex === "mare" ? "牝" : "牡"}${Number((horse.life?.deceased?.date ?? w.core.date).slice(0, 4)) - Number(horse.birthDate.slice(0, 4))}${horse.life?.deceased ? "歳で死亡" : "歳"} · ${horse.location}`
               : "2歳調教公開市場 · 架空の馬と人物"}
           </p>
         </div>
@@ -258,14 +258,21 @@ export function CareerHome({ world: w, ready, act }: Props) {
                   {yen(horse.details!.earnedYen ?? 0)}
                 </p>
               )}
-              <p className="fine">
-                登録：{horse.details!.registered ? "完了" : "未完了"} ／
-                ゲート試験：
-                {horse.details!.gateDate &&
-                horse.details!.gateDate <= w.core.date
-                  ? `${horse.details!.gateDate} 通過`
-                  : `${horse.details!.gateDate ?? "未定"} 報告予定`}
-              </p>
+              {horse.life?.deceased ||
+              (horse.life && horse.life.racing !== "active") ? (
+                <p className="fine">
+                  競走登録は終了しました。以後のゲート試験・出走予定はありません。
+                </p>
+              ) : (
+                <p className="fine">
+                  登録：{horse.details!.registered ? "完了" : "未完了"} ／
+                  ゲート試験：
+                  {horse.details!.gateDate &&
+                  horse.details!.gateDate <= w.core.date
+                    ? `${horse.details!.gateDate} 通過`
+                    : `${horse.details!.gateDate ?? "未定"} 報告予定`}
+                </p>
+              )}
             </aside>
           </div>
           {c.life && <LifePanel {...{ world: w, ready, act }} />}
@@ -818,9 +825,11 @@ function ActivePanel({ world: w, ready, act }: Props) {
                 ? "相談を決めてから日付を進めます。"
                 : race?.status === "result"
                   ? "精算後に次の方針を相談します。"
-                  : c.life && !c.trainerId
-                    ? "診療・受入先からの報告と請求を待ちながら、暦を進めます。"
-                    : `次の確認：${race ? (race.status === "registered" ? race.selectionDate : race.date) : c.nextReview}。請求・選出・競走でも止まります。`}
+                  : horseIsDeceased(w)
+                    ? "他の馬の予定や資金を確認しながら、暦を進めます。"
+                    : c.life && !c.trainerId
+                      ? "診療・受入先からの報告と請求を待ちながら、暦を進めます。"
+                      : `次の確認：${race ? (race.status === "registered" ? race.selectionDate : race.date) : c.nextReview}。請求・選出・競走でも止まります。`}
           </p>
         </div>
         <div className="actions">
@@ -1062,4 +1071,8 @@ export function FinancePanel({ world: w, ready, act }: Props) {
       )}
     </section>
   );
+}
+
+function horseIsDeceased(w: World) {
+  return !!ownedHorse(w)?.life?.deceased;
 }
